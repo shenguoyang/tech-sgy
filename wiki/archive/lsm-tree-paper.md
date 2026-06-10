@@ -1,6 +1,6 @@
 ---
 title: LSM-Tree 论文摘要 — The Log-Structured Merge-Tree
-type: source
+type: archived
 tags: [论文, LSM-Tree, 数据结构]
 created: 2026-06-10
 updated: 2026-06-10

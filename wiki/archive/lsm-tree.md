@@ -1,6 +1,6 @@
 ---
 title: LSM-Tree（日志结构合并树）
-type: concept
+type: archived
 tags: [数据结构, 存储引擎, 写入优化]
 created: 2026-06-10
 updated: 2026-06-10

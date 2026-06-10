@@ -1,6 +1,6 @@
 ---
 title: ZFS 文件系统
-type: software
+type: archived
 tags: [文件系统, 数据完整性, CoW, 快照]
 created: 2026-06-10
 updated: 2026-06-10

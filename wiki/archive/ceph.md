@@ -1,6 +1,6 @@
 ---
 title: Ceph 分布式存储系统
-type: software
+type: archived
 tags: [分布式存储, 对象存储, CRUSH]
 created: 2026-06-10
 updated: 2026-06-10
