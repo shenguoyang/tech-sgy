@@ -74,7 +74,7 @@ source: raw/xxx/文件名  # 可选，source 和 output 类型必填
 7. 在 `wiki/log.md` 追加操作记录（时间、操作、涉及文件）
 
 **约束**：
-- 每个生成的 Wiki 页面 200–500 字
+- 每个生成的 Wiki 页面 小于5000 字
 - 概念页面必须包含「核心思想」「典型实现」「与其他概念的关系」三部分
 - 每个概念页面至少包含一个具体例子
 
@@ -111,7 +111,7 @@ source: raw/xxx/文件名  # 可选，source 和 output 类型必填
 ## 写作风格
 
 - **语言**：中文写作。专业名词首次出现时保留英文原文，格式：`中文译名（English Name, 缩写）`
-- **篇幅**：每个 Wiki 页面 200–500 字
+- **篇幅**：每个 Wiki 页面 小于5000 字
 - **结构**：
   - 概念页：核心思想 → 典型实现 → 与其他概念的关系
   - 协议页：背景与动机 → 核心机制 → 与相关协议的关系
@@ -130,33 +130,5 @@ source: raw/xxx/文件名  # 可选，source 和 output 类型必填
 
 ---
 
-## Obsidian 推荐插件
 
-为获得最佳体验，建议在 Obsidian 中安装以下插件：
 
-| 插件 | 用途 |
-|------|------|
-| **Obsidian Wikilink Types** (`obsidian-wikilink-types`) | 支持 `@supersedes`、`@competes` 等语义标签的高亮和筛选 |
-| **Dataview** | 基于 YAML Frontmatter 的动态查询，如列出所有 `type: concept` 页面 |
-| **Graph View** (内置) | 可视化页面之间的链接关系 |
-| **Backlinks** (内置) | 查看哪些页面引用了当前页面 |
-| **Tag Wrangler** | 批量管理标签 |
-| **Calendar** | 按创建日期浏览页面 |
-| **Note Refactor** | 按标题拆分长页面为独立笔记 |
-| **Templater** | 自动插入 YAML Frontmatter 模板 |
-
-### Dataview 查询示例
-
-在任意页面中嵌入以下代码块，动态列出内容：
-
-```dataview
-TABLE type, tags, updated
-FROM "wiki/concepts"
-SORT updated DESC
-```
-
-```dataview
-TABLE source, updated
-FROM "wiki/sources"
-WHERE status = "待处理"
-```

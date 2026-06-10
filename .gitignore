@@ -1,0 +1,5 @@
+# 排除可能嵌套的 .git 目录（如 raw/ 中下载的第三方资料）
+.git/
+
+# Claude Code 配置
+.claude/
