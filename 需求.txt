@@ -1,0 +1,184 @@
+好的，我来帮你整理一份完整的提示词。这份提示词汇总了我们之前讨论的所有关键决策，你可以直接用它让任何 AI Agent（Claude、GPT 等）生成符合你需求的 Karpathy 风格知识库。
+
+---
+
+# 提示词：生成计算机存储技术方向的 Karpathy 风格知识库
+
+## 任务说明
+
+请帮我搭建一个基于 Andrej Karpathy「LLM Wiki」理念的计算机存储技术知识库。这不是一个简单的文档库，而是一个可编译的、能与 AI 协作的知识管理系统。
+
+## 核心架构要求
+
+请采用**三层架构**：
+
+### 第 1 层：Raw 层（原始资料）
+- 存放原始资料（论文、协议规范、数据手册、个人笔记）
+- 此层文件**只读不修改**，是事实来源
+- 需要支持 HTML 文件的处理：提取正文为 Markdown，图片存到 assets 目录
+
+### 第 2 层：Wiki 层（知识层）
+- LLM 编译产物，存放经过提炼的知识（概念、协议、硬件、软件、实体）
+- 此层是用户阅读和查询的主要区域
+
+### 第 3 层：Project 层（项目层）
+- 存放具体项目文档（如「低成本高性能存储方案选型」）
+- 项目文档可以引用 Wiki 层的知识
+- 项目完成后可归档，项目中的新发现应回流到 Wiki 层
+
+### 第 4 层：Assets 层（知识资产层，可选）
+- 存放图片、动画、交互式 HTML 组件
+- Wiki 层通过相对路径引用这些资产
+
+## 详细目录结构
+
+请生成以下目录结构：
+
+```
+storage-kb/
+├── raw/                         # 第1层：原始资料
+│   ├── papers/                  # 学术论文
+│   ├── specs/                   # 协议规范
+│   ├── datasheets/              # 硬件手册
+│   ├── notes/                   # 个人笔记
+│   └── html-archives/           # 原始HTML备份（不处理）
+│
+├── wiki/                        # 第2层：知识层
+│   ├── concepts/                # 抽象概念（LSM Tree、Copy-on-Write）
+│   ├── protocols/               # 协议接口（NVMe、SATA、NVMe-oF）
+│   ├── hardware/                # 硬件组件（NAND Flash、SSD Controller）
+│   ├── software/                # 软件系统（ZFS、Ceph、RocksDB）
+│   ├── entities/                # 人物/公司/组织
+│   ├── sources/                 # raw/资料的摘要页
+│   ├── outputs/                 # 归档的分析报告
+│   ├── inbox.md                 # Raw文件处理状态看板
+│   ├── index.md                 # 总导航
+│   └── log.md                   # 操作日志
+│
+├── projects/                    # 第3层：项目层
+│   ├── active/                  # 进行中的项目
+│   │   └── [项目名]/
+│   │       ├── project.md       # 项目主文档
+│   │       ├── design.md        # 设计方案
+│   │       ├── comparisons/     # 方案对比
+│   │       ├── decisions/       # 架构决策记录(ADR)
+│   │       └── outputs/         # 项目产出
+│   └── archived/                # 已完结项目
+│
+├── assets/                      # 第4层：知识资产
+│   ├── images/                  # 架构图、流程图
+│   ├── animations/              # SVG动画、视频
+│   └── interactive/             # 交互式HTML组件
+│
+└── AGENTS.md                    # AI行为规范文件
+```
+
+## 页面模板要求
+
+每个 Wiki 页面必须包含以下 YAML Frontmatter：
+
+```yaml
+---
+title: 页面标题
+type: concept | protocol | hardware | software | entity | source | output
+tags: [标签1, 标签2]
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+source: raw/xxx/文件名  # 可选
+---
+```
+
+`inbox.md` 需要包含 Raw 文件处理状态的追踪表：
+
+```markdown
+| Raw 文件 | 状态 | 处理时间 | 生成的 Wiki 页面 | 备注 |
+|----------|------|----------|------------------|------|
+| [[raw/papers/xxx.pdf]] | ✅ 已处理 | YYYY-MM-DD | [[sources/xxx.md]] | - |
+| [[raw/xxx.html]] | ⏳ 待处理 | - | - | - |
+```
+
+## 语义链接规范
+
+在生成 `[[链接]]` 时，必须使用以下语义标签（配合 obsidian-wikilink-types 插件）：
+
+| 标签 | 含义 | 示例 |
+|------|------|------|
+| `@supersedes` | 技术上完全取代 | [[nvme.md]] @supersedes [[ahci.md]] |
+| `@competes` | 竞争/替代方案 | [[lsm-tree.md]] @competes [[b-tree.md]] |
+| `@based_on` | 基于/衍生自 | [[rocksdb.md]] @based_on [[lsm-tree.md]] |
+| `@implements` | 协议/接口实现 | [[nvme-of.md]] @implements [[nvme.md]] |
+| `@contrasts` | 对比/差异 | [[copy-on-write.md]] @contrasts [[journaling.md]] |
+
+## 核心操作流程
+
+请生成 `AGENTS.md`，包含以下三个核心操作：
+
+### 1. 摄入（Ingest）
+当用户说「处理 raw/xxx/文件名」时：
+- 读取文件内容
+- 在 `wiki/sources/` 创建摘要页
+- 提取核心概念，在对应目录创建/更新页面
+- 添加带语义标签的 `[[双向链接]]`
+- 更新 `wiki/index.md`
+- 更新 `wiki/inbox.md`（标记为「已处理」）
+- 在 `wiki/log.md` 追加记录
+
+### 2. 查询（Query）
+当用户提问时：
+- 先读 `wiki/index.md` 定位相关页面
+- 深入阅读 3-5 个最相关的页面
+- 综合回答，**必须引用具体页面**
+- 高质量答案询问是否归档到 `wiki/outputs/`
+
+### 3. 体检（Lint）
+当用户说「体检」时：
+- 找出孤立页面、断链、矛盾信息
+- 输出 Markdown 报告
+- 建议可创建的新页面
+
+## 写作风格要求
+
+- **语言**：用中文写作，专业名词首次出现时保留英文原文（如「日志结构合并树，Log-Structured Merge-Tree, LSM-Tree」）
+- **篇幅**：每个页面 200-500 字
+- **结构**：概念页面需包含「核心思想」「典型实现」「与其他概念的关系」三个部分
+- **例子**：每个概念页面至少包含一个具体例子
+
+## 存储领域特定要求
+
+### 必有的基础概念页面
+- `concepts/copy-on-write.md`
+- `concepts/lsm-tree.md`
+- `concepts/write-amplification.md`
+- `concepts/wear-leveling.md`
+- `protocols/nvme.md`
+- `software/zfs.md`
+- `software/ceph.md`
+
+### 技术演进关系标注要求
+- 协议替代（如 NVMe → AHCI）必须使用 `@supersedes`
+- 算法竞争（如 LSM-Tree vs B-Tree）必须使用 `@competes`
+- 设计继承（如 ZFS CoW → Btrfs CoW）必须使用 `@based_on`
+
+## 输出要求
+
+请生成以下内容：
+
+1. **完整的目录结构**（可直接在终端执行的创建命令，如 `mkdir -p`）
+2. **`AGENTS.md` 完整文件**
+3. **三个示例页面**：
+   - 一个概念页面示例（如 `wiki/concepts/lsm-tree.md`）
+   - 一个协议页面示例（如 `wiki/protocols/nvme.md`）
+   - 一个项目页面示例（如 `projects/active/example/project.md`）
+4. **`inbox.md` 和 `index.md` 的初始模板**
+5. **一个示例摄入流程**：模拟处理一篇 LSM-Tree 论文后的输出结果
+
+## 可选：额外需求
+
+如果你有足够上下文，也可以帮我生成：
+- 一个快速启动脚本（一键创建整个知识库）
+- 与 Obsidian 配合的建议插件清单
+
+---
+
+**使用说明**：把上面这段提示词发给你的 AI 助手（Claude、GPT 等），它就会生成一套完整的、可直接使用的 Karpathy 风格知识库。生成的 `AGENTS.md` 可以直接放到项目根目录，配合 Claude Code / Codex 等 Agent 使用。
+
