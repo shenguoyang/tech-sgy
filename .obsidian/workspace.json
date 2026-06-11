@@ -4,20 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "c2f9387348f517d2",
+        "id": "2228937a4abfd00d",
         "type": "tabs",
         "children": [
           {
-            "id": "71be242e32d385ec",
+            "id": "306dfe2a28aaa6c9",
             "type": "leaf",
             "state": {
-              "type": "bases",
-              "state": {
-                "file": "未命名.base",
-                "viewName": "表格"
-              },
-              "icon": "lucide-table",
-              "title": "未命名"
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "新标签页"
             }
           }
         ]
@@ -93,7 +90,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "未命名.base",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -103,7 +99,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "未命名 的反向链接列表"
+              "title": "反向链接"
             }
           },
           {
@@ -161,13 +157,23 @@
               "icon": "lucide-list",
               "title": "大纲"
             }
+          },
+          {
+            "id": "349668e07a52a840",
+            "type": "leaf",
+            "state": {
+              "type": "claudian-view",
+              "state": {},
+              "icon": "bot",
+              "title": "Claudian"
+            }
           }
-        ]
+        ],
+        "currentTab": 5
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 577.5
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -178,11 +184,19 @@
       "daily-notes:打开/创建今天的日记": false,
       "templates:插入模板": false,
       "command-palette:打开命令面板": false,
-      "bases:新建数据库": false
+      "bases:新建数据库": false,
+      "realclaudian:Open Claudian": false
     }
   },
-  "active": "71be242e32d385ec",
+  "active": "349668e07a52a840",
   "lastOpenFiles": [
+    "courses/published",
+    "courses/_templates",
+    "courses/drafts",
+    "courses/_battles",
+    "courses",
+    "未命名 2.base",
+    "未命名 1.base",
     "未命名.base"
   ]
 }
