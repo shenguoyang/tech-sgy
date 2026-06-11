@@ -190,6 +190,11 @@
   },
   "active": "349668e07a52a840",
   "lastOpenFiles": [
+    "courses/README.md",
+    "courses/_templates/analogy-card-template.md",
+    "courses/_templates/chapter-course-template.md",
+    "courses/_templates/micro-course-template.md",
+    "courses/index.md",
     "courses/published",
     "courses/_templates",
     "courses/drafts",
