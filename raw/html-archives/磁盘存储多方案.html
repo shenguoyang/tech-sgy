@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>车辆检测图像磁盘存储 — 多方案设计文档</title>
+<style>
+/* ===== 全局样式 ===== */
+:root {
+  --sidebar-width: 260px;
+  --primary: #1a73e8;
+  --primary-dark: #1557b0;
+  --bg: #f8f9fa;
+  --sidebar-bg: #1e293b;
+  --sidebar-text: #cbd5e1;
+  --sidebar-active: #3b82f6;
+  --card-bg: #ffffff;
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --code-bg: #1e293b;
+  --code-text: #e2e8f0;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; display:flex; min-height:100vh; background:var(--bg); color:var(--text); line-height:1.7; }
+
+/* ===== 左侧导航 ===== */
+.sidebar {
+  width:var(--sidebar-width); background:var(--sidebar-bg);
+  position:fixed; top:0; left:0; bottom:0; overflow-y:auto;
+  padding:24px 0; z-index:100; display:flex; flex-direction:column;
+}
+.sidebar-logo {
+  padding:0 20px 20px; border-bottom:1px solid rgba(255,255,255,0.1);
+  margin-bottom:8px; color:#fff; font-size:15px; font-weight:700;
+  letter-spacing:0.5px;
+}
+.sidebar-logo span { color:var(--sidebar-active); }
+.nav-section { padding:16px 20px 4px; font-size:11px; text-transform:uppercase;
+  letter-spacing:1px; color:rgba(255,255,255,0.35); font-weight:600; }
+.nav-item {
+  display:block; padding:8px 20px; color:var(--sidebar-text);
+  text-decoration:none; font-size:13.5px; transition:all 0.2s;
+  border-left:3px solid transparent; cursor:pointer;
+}
+.nav-item:hover { background:rgba(255,255,255,0.05); color:#fff; }
+.nav-item.active { background:rgba(59,130,246,0.15); color:#60a5fa; border-left-color:var(--sidebar-active); }
+.nav-sub { padding-left:36px; font-size:12.5px; }
+.badge-rec { display:inline-block; background:var(--success); color:#fff; font-size:10px;
+  padding:2px 6px; border-radius:3px; margin-left:6px; vertical-align:middle; }
+
+/* ===== 右侧内容 ===== */
+.main {
+  margin-left:var(--sidebar-width); flex:1; padding:32px 40px;
+  max-width:1100px;
+}
+.section { margin-bottom:48px; scroll-margin-top:24px; }
+.section-title { font-size:28px; font-weight:700; margin-bottom:8px; color:var(--text); }
+.section-subtitle { font-size:15px; color:var(--text-secondary); margin-bottom:24px; }
+.section-divider { border:none; border-top:2px solid var(--border); margin:32px 0; }
+
+/* ===== 卡片 ===== */
+.card {
+  background:var(--card-bg); border-radius:12px; padding:24px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  margin-bottom:20px; border:1px solid var(--border);
+}
+.card h3 { font-size:18px; margin-bottom:12px; color:var(--primary); }
+.card h4 { font-size:15px; margin:16px 0 8px; color:var(--text); }
+
+/* ===== 动画画布容器 ===== */
+.anim-container {
+  background:var(--card-bg); border-radius:12px; padding:20px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:20px;
+  border:1px solid var(--border); text-align:center;
+  position:relative;
+}
+.anim-container h3 { text-align:left; margin-bottom:4px; }
+.anim-container .anim-label { text-align:left; font-size:13px; color:var(--text-secondary); margin-bottom:12px; }
+canvas { display:block; margin:0 auto; border-radius:8px; background:#fafbfc; }
+.anim-controls { margin-top:12px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.anim-controls button {
+  padding:7px 16px; border:1px solid var(--border); border-radius:6px;
+  background:#fff; cursor:pointer; font-size:13px; transition:all 0.2s;
+}
+.anim-controls button:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+.anim-controls button.active-btn { background:var(--primary); color:#fff; border-color:var(--primary); }
+.anim-legend { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--text-secondary); }
+.anim-legend span { display:flex; align-items:center; gap:4px; }
+.legend-dot { display:inline-block; width:10px; height:10px; border-radius:2px; }
+
+/* ===== 表格 ===== */
+.comparison-table { width:100%; border-collapse:collapse; font-size:14px; margin:16px 0; }
+.comparison-table th { background:var(--primary); color:#fff; padding:12px 16px; text-align:left; font-weight:600; }
+.comparison-table th:first-child { border-radius:8px 0 0 0; }
+.comparison-table th:last-child { border-radius:0 8px 0 0; }
+.comparison-table td { padding:12px 16px; border-bottom:1px solid var(--border); }
+.comparison-table tr:hover td { background:#f1f5f9; }
+.comparison-table .highlight-col { background:#eff6ff; }
+.comparison-table .best { color:var(--success); font-weight:700; }
+
+/* ===== 代码块 ===== */
+.code-block {
+  background:var(--code-bg); color:var(--code-text); border-radius:8px;
+  padding:16px 20px; margin:12px 0; overflow-x:auto; font-size:13px;
+  font-family:'Cascadia Code','Fira Code','JetBrains Mono',Consolas,monospace;
+  line-height:1.6;
+}
+.code-block .keyword { color:#c792ea; }
+.code-block .type { color:#ffcb6b; }
+.code-block .func { color:#82aaff; }
+.code-block .string { color:#c3e88d; }
+.code-block .comment { color:#546e7a; font-style:italic; }
+
+/* ===== 流程步骤 ===== */
+.steps { counter-reset:step; list-style:none; padding:0; }
+.steps li { counter-increment:step; padding:12px 16px 12px 52px; position:relative;
+  margin-bottom:8px; background:#f8fafc; border-radius:8px; font-size:14px; }
+.steps li::before {
+  content:counter(step); position:absolute; left:12px; top:12px;
+  width:26px; height:26px; background:var(--primary); color:#fff;
+  border-radius:50%; text-align:center; line-height:26px; font-size:13px; font-weight:700;
+}
+
+/* ===== 标签 ===== */
+.tag { display:inline-block; padding:3px 10px; border-radius:4px; font-size:12px; font-weight:600; margin-right:4px; }
+.tag-green { background:#d1fae5; color:#065f46; }
+.tag-red { background:#fee2e2; color:#991b1b; }
+.tag-blue { background:#dbeafe; color:#1e40af; }
+.tag-yellow { background:#fef3c7; color:#92400e; }
+
+/* ===== 响应式 ===== */
+@media (max-width:768px) {
+  .sidebar { width:200px; }
+  .main { margin-left:200px; padding:20px; }
+}
+
+/* ===== 滚动条 ===== */
+.sidebar::-webkit-scrollbar { width:4px; }
+.sidebar::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:2px; }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+
+/* ===== 架构图 ===== */
+.arch-diagram {
+  display:flex; gap:16px; align-items:center; justify-content:center;
+  flex-wrap:wrap; padding:20px; font-size:13px;
+}
+.arch-box {
+  border:2px dashed var(--border); border-radius:10px; padding:16px;
+  text-align:center; min-width:120px; background:#fafbfc;
+}
+.arch-box.solid { border-style:solid; border-color:var(--primary); background:#eff6ff; }
+.arch-arrow { font-size:24px; color:var(--primary); font-weight:700; }
+
+/* ===== 原理层级图 ===== */
+.layer-stack { margin:16px 0; }
+.layer-item { border-left:3px solid var(--primary); padding:10px 16px; margin-bottom:4px;
+  background:#f8fafc; border-radius:0 8px 8px 0; font-size:14px; transition:all 0.2s; }
+.layer-item:hover { background:#eff6ff; transform:translateX(4px); }
+.layer-item strong { color:var(--primary); }
+.layer-item .layer-desc { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+
+/* ===== 提示框 ===== */
+.callout {
+  border-radius:8px; padding:14px 18px; margin:16px 0; font-size:14px;
+  border-left:4px solid;
+}
+.callout-info { background:#eff6ff; border-color:var(--primary); }
+.callout-warning { background:#fffbeb; border-color:var(--warning); }
+.callout-success { background:#f0fdf4; border-color:var(--success); }
+.callout-danger { background:#fef2f2; border-color:var(--danger); }
+
+/* ===== 方案选择流程图 ===== */
+.flow-chart {
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  padding:20px; font-size:14px;
+}
+.flow-node {
+  padding:12px 24px; border-radius:8px; border:2px solid var(--primary);
+  background:#fff; text-align:center; font-weight:600; min-width:200px;
+}
+.flow-decision {
+  padding:12px 24px; border-radius:8px; border:2px solid var(--warning);
+  background:#fffbeb; text-align:center; font-weight:600; min-width:200px;
+  transform:rotate(0deg);
+}
+.flow-branch { display:flex; gap:40px; }
+.flow-yes, .flow-no { padding:8px 20px; border-radius:6px; font-weight:600; }
+.flow-yes { background:#d1fae5; color:#065f46; }
+.flow-no { background:#fee2e2; color:#991b1b; }
+.flow-down { font-size:20px; color:var(--primary); }
+
+/* ===== 编辑按钮 ===== */
+.edit-toggle {
+  position:fixed; bottom:24px; right:24px; z-index:9999;
+  width:48px; height:48px; border-radius:50%; border:none;
+  background:var(--primary); color:#fff; font-size:20px;
+  cursor:pointer; box-shadow:0 4px 12px rgba(26,115,232,0.35);
+  transition:all 0.2s; display:flex; align-items:center; justify-content:center;
+}
+.edit-toggle:hover { background:var(--primary-dark); transform:scale(1.1); }
+.edit-toggle.active { background:var(--success); }
+.edit-toolbar {
+  position:fixed; top:12px; right:24px; z-index:9999;
+  display:none; gap:8px; background:#fff; padding:8px 12px;
+  border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
+  font-size:13px; align-items:center;
+}
+.edit-toolbar.visible { display:flex; }
+.edit-toolbar button {
+  padding:4px 12px; border:1px solid var(--border); border-radius:4px;
+  background:#fff; cursor:pointer; font-size:12px; transition:all 0.2s;
+}
+.edit-toolbar button:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+.edit-toolbar button.save-btn { background:var(--success); color:#fff; border-color:var(--success); }
+body.editing .sidebar { display:none; }
+body.editing .main { margin-left:0; max-width:100%; }
+body.editing .section, body.editing .card, body.editing .callout, body.editing .anim-container {
+  outline:1px dashed var(--primary); outline-offset:2px;
+}
+body.editing .section:hover, body.editing .card:hover, body.editing .callout:hover {
+  outline:2px dashed var(--warning);
+}
+
+/* ===== 背景知识图 ===== */
+.bg-knowledge-grid {
+  display:flex; gap:16px; flex-wrap:wrap; margin:16px 0;
+}
+.bg-knowledge-grid .bg-card {
+  flex:1; min-width:240px; background:#f8fafc; border-radius:8px;
+  padding:16px; border:1px solid var(--border);
+}
+.bg-knowledge-grid .bg-card h4 { margin:0 0 8px; font-size:14px; color:var(--primary); }
+.bg-knowledge-grid .bg-card p { font-size:13px; color:var(--text-secondary); margin:0; }
+.dataflow-diagram {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  flex-wrap:wrap; padding:12px; font-size:12px; margin:8px 0;
+  background:#fafbfc; border-radius:8px; border:1px solid var(--border);
+}
+.dataflow-diagram .df-box {
+  padding:8px 14px; border-radius:6px; font-weight:600;
+  text-align:center; white-space:nowrap;
+}
+.dataflow-diagram .df-arrow { font-size:18px; color:var(--text-secondary); font-weight:700; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 编辑按钮 ==================== -->
+<button class="edit-toggle" id="editToggle" title="切换编辑模式" onclick="toggleEdit()">✎</button>
+<div class="edit-toolbar" id="editToolbar">
+  <span style="color:var(--text-secondary);">编辑模式</span>
+  <button onclick="saveEdit()" class="save-btn">💾 保存 HTML</button>
+  <button onclick="toggleEdit()">退出编辑</button>
+</div>
+
+<!-- ==================== 左侧导航 ==================== -->
+<nav class="sidebar">
+  <div class="sidebar-logo">磁盘存储<span>方案设计</span></div>
+
+  <div class="nav-section">概述</div>
+  <a class="nav-item active" href="#overview">背景与问题</a>
+  <a class="nav-item" href="#design-goals">设计目标</a>
+  <a class="nav-item" href="#background-knowledge">背景知识：I/O 原理</a>
+  <a class="nav-item" href="#startup-defrag">启动碎片整理（共有）</a>
+
+  <div class="nav-section">四种方案</div>
+  <a class="nav-item" href="#plan1">方案一：交错布局 + WriteFile</a>
+  <a class="nav-item nav-sub" href="#plan1-anim">原理动画</a>
+  <a class="nav-item nav-sub" href="#plan1-principle">底层原理</a>
+  <a class="nav-item nav-sub" href="#plan1-eval">方案评估</a>
+
+  <a class="nav-item" href="#plan2">方案二：单文件内部块管理</a>
+  <a class="nav-item nav-sub" href="#plan2-anim">原理动画</a>
+  <a class="nav-item nav-sub" href="#plan2-principle">底层原理</a>
+  <a class="nav-item nav-sub" href="#plan2-eval">方案评估</a>
+
+  <a class="nav-item" href="#plan3">方案三：内存映射环形缓冲 <span class="badge-rec">推荐</span></a>
+  <a class="nav-item nav-sub" href="#plan3-anim">原理动画</a>
+  <a class="nav-item nav-sub" href="#plan3-principle">底层原理</a>
+  <a class="nav-item nav-sub" href="#plan3-eval">方案评估</a>
+
+  <a class="nav-item" href="#plan4">方案四：预分配 + 直接 I/O <span class="badge-rec">数据库经典</span></a>
+  <a class="nav-item nav-sub" href="#plan4-principle">底层原理</a>
+  <a class="nav-item nav-sub" href="#plan4-eval">方案评估</a>
+
+  <div class="nav-section">总结</div>
+  <a class="nav-item" href="#scenario-guide">场景化选型指南</a>
+  <a class="nav-item" href="#io-comparison">直接 I/O vs mmap 深度对比</a>
+  <a class="nav-item" href="#comparison">方案对比</a>
+  <a class="nav-item" href="#recommendation">最终建议</a>
+</nav>
+
+<!-- ==================== 右侧内容 ==================== -->
+<main class="main">
+
+<!-- ===== 背景 ===== -->
+<section id="overview" class="section">
+  <h2 class="section-title">背景与问题</h2>
+  <p class="section-subtitle">车辆缺陷检测系统的图像存储挑战</p>
+
+  <div class="card">
+    <h3>场景描述</h3>
+    <p>Windows 系统 + 机械磁盘（HDD），应用软件对每辆驶入的车辆拍摄多张缺陷检测图像，<strong>每车图像约 2MB</strong>，需要长期持续存储。磁盘的大部分空间用于存储这些图像，配置数据占比较小。</p>
+  </div>
+
+  <div class="card" style="border-left:4px solid var(--danger);">
+    <h3>核心痛点：磁盘碎片化</h3>
+    <p>运行一段时间后，机械磁盘产生严重碎片化，原因在于：</p>
+    <ul class="steps">
+      <li><strong>频繁创建/删除文件</strong> — 图像不断写入新文件，旧文件被删除腾出空间</li>
+      <li><strong>文件大小不一</strong> — 不同图像尺寸导致释放的空间大小各异，新文件难以正好填入</li>
+      <li><strong>NTFS 分配策略</strong> — 文件系统倾向于使用最近释放的空间，长期导致文件散布在磁盘各处</li>
+      <li><strong>HDD 寻道代价高</strong> — 机械臂需要频繁移动定位碎片化的数据，读写性能急剧下降</li>
+    </ul>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>碎片化的本质</strong>：机械磁盘的顺序读写速度可达 150-200 MB/s，而随机读写可能骤降至 1-5 MB/s（相差 40 倍以上）。碎片化使原本顺序的读写操作变成大量随机寻道，这就是性能衰退的根本原因。
+  </div>
+</section>
+
+<!-- ===== 设计目标 ===== -->
+<section id="design-goals" class="section">
+  <h2 class="section-title">设计目标</h2>
+  <div class="card">
+    <table style="width:100%; font-size:14px;">
+      <tr><td style="padding:8px 0;"><span class="tag tag-green">P0</span></td><td><strong>消除碎片化</strong> — 确保磁盘空间始终连续可用，避免性能衰退</td></tr>
+      <tr><td style="padding:8px 0;"><span class="tag tag-green">P0</span></td><td><strong>环形覆盖</strong> — 空间写满后自动覆盖最早的数据，无需人工清理</td></tr>
+      <tr><td style="padding:8px 0;"><span class="tag tag-blue">P1</span></td><td><strong>空间隔离</strong> — 专用区域不受其他程序干扰</td></tr>
+      <tr><td style="padding:8px 0;"><span class="tag tag-blue">P1</span></td><td><strong>C++ 组件库</strong> — 提供简洁的初始化/读写接口</td></tr>
+      <tr><td style="padding:8px 0;"><span class="tag tag-yellow">P2</span></td><td><strong>数据完整性</strong> — 校验机制保障图像数据不损坏</td></tr>
+      <tr><td style="padding:8px 0;"><span class="tag tag-yellow">P2</span></td><td><strong>崩溃恢复</strong> — 进程异常退出后数据可恢复</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== 背景知识：I/O 原理 ===== -->
+<section id="background-knowledge" class="section">
+  <h2 class="section-title">背景知识：I/O 数据流原理</h2>
+  <p class="section-subtitle">理解以下概念是阅读四种方案的前提——数据在"用户空间 → Page Cache → 磁盘"这条路径上如何流动</p>
+
+  <div class="card">
+    <h3>三种读写方式的核心区别</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      它们的本质区别在于：<strong>用户空间、Page Cache、磁盘这三个环节之间，数据流动的路径和时机完全不同。</strong>
+    </p>
+
+    <div class="bg-knowledge-grid">
+      <div class="bg-card">
+        <h4>① 普通读写 (Buffered I/O)</h4>
+        <div class="dataflow-diagram">
+          <span class="df-box" style="background:#dbeafe;color:#1e40af;">应用 Buffer</span>
+          <span class="df-arrow">←CPU拷贝→</span>
+          <span class="df-box" style="background:#fef3c7;color:#92400e;">Page Cache</span>
+          <span class="df-arrow">←DMA→</span>
+          <span class="df-box" style="background:#e2e8f0;color:#475569;">磁盘</span>
+        </div>
+        <p>数据必须经过 <strong>Page Cache</strong>（内核缓冲区）中转。每次读写发生 2 次 CPU 拷贝 + 2 次 DMA 拷贝。优点是内核自动管理缓存、预读、异步写回，编程最简单。</p>
+      </div>
+      <div class="bg-card">
+        <h4>② 直接 I/O (Direct I/O, O_DIRECT)</h4>
+        <div class="dataflow-diagram">
+          <span class="df-box" style="background:#dbeafe;color:#1e40af;">应用 Buffer</span>
+          <span class="df-arrow">←DMA→</span>
+          <span class="df-box" style="background:#e2e8f0;color:#475569;">磁盘</span>
+        </div>
+        <p><strong>完全跳过 Page Cache</strong>。数据直接在用户 Buffer 和磁盘之间通过 DMA 传输，实现 <strong>零 CPU 拷贝</strong>。但需要应用自己管理缓存，且有严格的内存对齐要求。</p>
+      </div>
+      <div class="bg-card">
+        <h4>③ 内存映射 (mmap / MapViewOfFile)</h4>
+        <div class="dataflow-diagram">
+          <span class="df-box" style="background:#dbeafe;color:#1e40af;">映射区</span>
+          <span class="df-arrow">←页表→</span>
+          <span class="df-box" style="background:#fef3c7;color:#92400e;">Page Cache</span>
+          <span class="df-arrow">←DMA→</span>
+          <span class="df-box" style="background:#e2e8f0;color:#475569;">磁盘</span>
+        </div>
+        <p>将磁盘文件映射到进程虚拟地址空间，<strong>把 I/O 操作变成内存访问</strong>。跳过用户 Buffer 和显式系统调用，0 次 CPU 拷贝。但依赖 Page Cache，断电可能丢失未刷数据。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>预分配 (Pre-allocation) 的作用</h3>
+    <div class="dataflow-diagram" style="justify-content:flex-start;">
+      <span class="df-box" style="background:#d1fae5;color:#065f46;">预分配前的写入</span>
+      <span class="df-arrow">→</span>
+      <span style="font-size:12px; color:var(--text-secondary);">每次 write() 时：分配物理块 + 更新块位图 + 更新 inode + 写日志 → 不可预测的延迟抖动</span>
+    </div>
+    <div class="dataflow-diagram" style="justify-content:flex-start; margin-top:8px;">
+      <span class="df-box" style="background:#d1fae5;color:#065f46;">预分配后 (fallocate)</span>
+      <span class="df-arrow">→</span>
+      <span style="font-size:12px; color:var(--text-secondary);">一次性建立物理块和元数据的映射。之后的 write() 不再触发块分配、位图更新、inode 扩展 → 零抖动</span>
+    </div>
+    <p style="font-size:13px; color:var(--text-secondary); margin-top:12px;">
+      <strong>关键区别：</strong>预分配不改变数据的拷贝流程（CPU 拷贝和 DMA 拷贝照旧），它只消除<strong>运行时元数据操作</strong>带来的延迟抖动。这与磁盘是 HDD 还是 SSD 无关——元数据开销在 SSD 上依然存在，预分配能有效消除它们。
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>四种方案与 I/O 方式的对应关系</h3>
+    <table class="comparison-table">
+      <thead>
+        <tr><th>方案</th><th>使用的 I/O 方式</th><th>CPU 拷贝</th><th>经过 Page Cache</th><th>核心优势</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>方案一：交错布局 + WriteFile</td><td>普通读写</td><td>2 次</td><td>✅ 是</td><td>编程简单，内核全自动</td></tr>
+        <tr><td>方案二：单文件内部块管理</td><td>普通读写（可选直接 I/O）</td><td>2 次（可降为 0 次）</td><td>✅ 是（可跳过）</td><td>变长存储，空间利用率高</td></tr>
+        <tr><td>方案三：内存映射环形缓冲</td><td>内存映射 (mmap)</td><td><span class="best">0 次</span></td><td>✅ 是</td><td>零拷贝 + 无系统调用</td></tr>
+        <tr class="highlight-col"><td>方案四：预分配 + 直接 I/O</td><td>预分配 + 直接 I/O</td><td><span class="best">0 次</span></td><td>❌ 绕过</td><td>零拷贝 + 防 Page Cache 污染</td></tr>
+      </tbody>
+    </table>
+    <div class="callout callout-info" style="margin-top:12px;">
+      <strong>组合使用的精髓：</strong>预分配和直接 I/O 不是互斥的——MySQL InnoDB、Oracle 等数据库正是用 <strong>预分配 + 直接 I/O</strong> 的经典组合。先占好连续空间消除元数据抖动，再用直接 I/O 绕过 Page Cache 实现零拷贝，应用自己管理缓存。
+    </div>
+  </div>
+</section>
+
+<!-- ===== 启动碎片整理（所有方案共有） ===== -->
+<section id="startup-defrag" class="section">
+  <h2 class="section-title">启动碎片整理 <span class="tag tag-green">所有方案共有</span></h2>
+  <p class="section-subtitle">单文件预分配的前提：确保获得物理连续的磁盘区域。三种方案在启动时都需要执行以下步骤。</p>
+
+  <div class="card">
+    <h3>五步启动序列</h3>
+    <ol class="steps">
+      <li><strong>分析空闲空间 — FSCTL_GET_VOLUME_BITMAP</strong><br>向卷发送 IOCTL 获取空闲簇位图，每一位代表一个簇的分配状态。遍历位图找到最大连续空闲区域，判断是否 ≥ 目标文件大小。</li>
+      <li><strong>创建并预分配 — SetFileValidData</strong><br>用 <code>CreateFile(dwShareMode=0)</code> 独占创建文件，然后 <code>SetFileValidData</code> 瞬时标记有效数据大小（需 SE_MANAGE_VOLUME_NAME 特权），NTFS 立刻为全部字节分配物理簇。无特权时回退到 SetEndOfFile + 分块写零（64MB Overlapped I/O）。</li>
+      <li><strong>验证物理连续性 — FSCTL_GET_RETRIEVAL_POINTERS</strong><br>查询文件的物理 extent 布局。extent=1 完美连续；2~3 可接受；≥4 触发步骤④强制整理。</li>
+      <li><strong>碎片整理（如需）— FSCTL_MOVE_FILE</strong><br>向卷发送 IOCTL，让 NTFS 将文件簇重排到连续区域。如果仍失败 → 删除文件重建。</li>
+      <li><strong>独占锁定 — dwShareMode=0 + LockFileEx</strong><br>确保其他进程无法打开此文件，配合 NTFS 簇分配形成三层隔离。</li>
+    </ol>
+
+    <table style="margin-top:16px;">
+      <tr><th>Extent 数量</th><th>评级</th><th>处理</th></tr>
+      <tr><td>= 1</td><td><span class="tag tag-green">完美连续</span></td><td>无需处理，直接进入运行</td></tr>
+      <tr><td>2 ~ 3</td><td><span class="tag tag-blue">可接受</span></td><td>记录日志，继续运行</td></tr>
+      <tr><td>≥ 4</td><td><span class="tag tag-yellow">需要整理</span></td><td>触发 FSCTL_MOVE_FILE 强制重排</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>三层空间隔离（所有方案共有）</h3>
+    <div class="layer-stack">
+      <div class="layer-item">
+        <strong>① NTFS 簇分配层</strong>
+        <div class="layer-desc">文件预分配后，NTFS 将这些簇标记为"已占用"，其他文件无法使用此物理区域。</div>
+      </div>
+      <div class="layer-item">
+        <strong>② 文件句柄层 — dwShareMode=0</strong>
+        <div class="layer-desc">打开文件时禁止读写删除共享，其他进程（包括资源管理器）无法打开此文件。</div>
+      </div>
+      <div class="layer-item">
+        <strong>③ 字节范围锁 — LockFileEx</strong>
+        <div class="layer-desc">对整个文件加排他锁，进程内提供额外防护层。</div>
+      </div>
+    </div>
+    <div class="callout callout-info">
+      <strong>关键安全保障：</strong>三层隔离确保该磁盘区域从 NTFS 位图到文件句柄再到字节范围均被独占。硬件层面，其他程序的写入无法触及这些扇区——因为 NTFS 已经将它们标记为已分配。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>关键 Windows API（所有方案共有）</h3>
+    <div class="code-block">
+<span class="comment">// ═══ 启动初始化（所有方案均需执行） ═══</span>
+<span class="comment">// ① 分析空闲位图</span>
+<span class="type">DWORD</span> bytesReturned;
+<span class="func">DeviceIoControl</span>(hVolume, <span class="string">FSCTL_GET_VOLUME_BITMAP</span>, ...);
+
+<span class="comment">// ② 创建文件并瞬时预分配（需特权）</span>
+<span class="type">HANDLE</span> hFile = <span class="func">CreateFileW</span>(<span class="string">L"D:\vehicle_images.dat"</span>,
+    GENERIC_READ | GENERIC_WRITE, <span class="string">0</span>, <span class="string">NULL</span>, CREATE_ALWAYS,
+    FILE_ATTRIBUTE_NORMAL, <span class="string">NULL</span>);  <span class="comment">// dwShareMode=0 独占</span>
+<span class="func">SetFileValidData</span>(hFile, totalSize);  <span class="comment">// 瞬时分配，NTFS 标记簇已用</span>
+
+<span class="comment">// ③ 验证物理连续性</span>
+<span class="func">DeviceIoControl</span>(hFile, <span class="string">FSCTL_GET_RETRIEVAL_POINTERS</span>, ...);
+<span class="comment">// → 返回 Extent 数组，检查 extent 数量</span>
+
+<span class="comment">// ④ 如需整理（extent ≥ 4）</span>
+<span class="func">DeviceIoControl</span>(hVolume, <span class="string">FSCTL_MOVE_FILE</span>, ...);
+
+<span class="comment">// ⑤ 字节范围锁</span>
+<span class="func">LockFileEx</span>(hFile, LOCKFILE_EXCLUSIVE_LOCK, <span class="string">0</span>, totalSize, ...);
+
+<span class="comment">// ═══ 以上步骤完成后，文件物理布局永不变化 ═══</span>
+<span class="comment">// 各方案的差异仅在后续的「写入方式」</span></div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ================================================================================== -->
+<!-- 方案一 -->
+<!-- ================================================================================== -->
+<section id="plan1" class="section">
+  <h2 class="section-title">方案一：交错布局 + WriteFile 环形缓冲区</h2>
+  <p class="section-subtitle">启动时分析空闲空间 → 预分配单文件 → 验证物理连续性 → 必要时 FSCTL_MOVE_FILE 强制整理 → 三层隔离锁定</p>
+</section>
+
+<section id="plan1-anim" class="section">
+  <div class="anim-container">
+    <h3>原理动画</h3>
+    <div class="anim-label">左侧：文件交错布局（Header | Block0 | Index0 | Block1 | Index1 ...）。右侧：磁盘物理 extent，展示启动整理后文件在磁盘上仅占 1 个连续区域。</div>
+    <canvas id="canvas1" width="860" height="420"></canvas>
+    <div class="anim-controls">
+      <button onclick="anim1_play()">▶ 播放</button>
+      <button onclick="anim1_pause()">⏸ 暂停</button>
+      <button onclick="anim1_reset()">↺ 重置</button>
+      <button onclick="anim1_speed(1)">1×</button>
+      <button onclick="anim1_speed(2)">2×</button>
+      <button onclick="anim1_speed(4)">4×</button>
+    </div>
+    <div class="anim-legend">
+      <span><span class="legend-dot" style="background:#0f172a;"></span> Header</span>
+      <span><span class="legend-dot" style="background:#e2e8f0;"></span> 空闲 Block</span>
+      <span><span class="legend-dot" style="background:#10b981;"></span> 已写入 Block</span>
+      <span><span class="legend-dot" style="background:#3b82f6;"></span> 当前写入</span>
+      <span><span class="legend-dot" style="background:#f59e0b;"></span> 被覆盖 Block</span>
+      <span><span class="legend-dot" style="background:#6366f1;"></span> Index 区</span>
+    </div>
+  </div>
+</section>
+
+<section id="plan1-principle" class="section">
+  <div class="card">
+    <h3>方案一特有设计</h3>
+    <div class="callout callout-info">
+      <strong>启动碎片整理</strong>为所有方案共有机制，详见<a href="#startup-defrag" style="color:var(--primary);">启动碎片整理章节</a>。以下仅描述方案一的独特设计。
+    </div>
+
+    <h4>1. 文件内部交错布局</h4>
+    <p>方案一将 <strong>Index 紧跟在每个 Block 后面</strong>（交错布局），使数据与索引在物理上相邻，写入时可连续写：</p>
+    <canvas id="canvas1b" width="860" height="200"></canvas>
+    <div class="anim-legend">
+      <span><span class="legend-dot" style="background:#0f172a;"></span> Header (4KB)</span>
+      <span><span class="legend-dot" style="background:#3b82f6;"></span> Block (blockSize)</span>
+      <span><span class="legend-dot" style="background:#10b981;"></span> Index (128B)</span>
+    </div>
+    <p style="margin-top:8px; font-size:13px; color:var(--text-secondary);">
+      布局：<code>Header | Block0 | Index0 | Block1 | Index1 | ... | BlockN-1 | IndexN-1</code><br>
+      每个 slot = blockSize + 128B，slot[i] 偏移 = 4KB + i × (blockSize + 128)。写入时一次 Seek 到 slot[i]，数据+索引连续写，无需额外跳跃。
+    </p>
+
+    <h4>2. 固定块大小策略</h4>
+    <p>BlockSize = 最大图像尺寸 × 安全系数（如 3MB × 1.2 ≈ 4MB）。每张图像固定占用一个 Block，实现极简，但空间利用率约 70%。方案二/三支持变长存储，利用率可达 ~99%。</p>
+
+    <h4>3. Sequence 号崩溃恢复</h4>
+    <div class="layer-stack">
+      <div class="layer-item">
+        <strong>全局单调递增序列号</strong>
+        <div class="layer-desc">每次写入分配一个全局唯一的 sequence 号，写入 IndexEntry 和 Block 数据中。数字越大数据越新。</div>
+      </div>
+      <div class="layer-item">
+        <strong>启动时扫描自愈</strong>
+        <div class="layer-desc">启动时扫描全部 Index 条目，找到最大 valid sequence → 重建 write_position。遍历所有 Valid 条目校验 data_crc32，CRC 不匹配则标记为空。</div>
+      </div>
+      <div class="layer-item">
+        <strong>写入顺序保证</strong>
+        <div class="layer-desc">写入顺序为 数据 → Index → Header。崩溃在任何阶段：CRC 校验失败 → 标记无效；Index 不一致 → 以 Header 为准；Header 未更新 → 扫描 Index 重建。</div>
+      </div>
+    </div>
+
+    <h4>4. 方案一写入流程</h4>
+    <div class="code-block">
+<span class="comment">// 方案一写入：2 次 Seek（数据+索引连续写）</span>
+<span class="type">uint64_t</span> slotSize   = blockSize + <span class="string">128</span>;
+<span class="type">uint64_t</span> slotOffset = HEADER_SIZE + writePos * slotSize;
+<span class="func">SetFilePointerEx</span>(hFile, slotOffset, ...);
+<span class="func">WriteFile</span>(hFile, imgData, size, ...);          <span class="comment">// 写图像数据</span>
+<span class="func">WriteFile</span>(hFile, &indexEntry, <span class="string">128</span>, ...);     <span class="comment">// 紧接着写 Index（连续，无 Seek）</span>
+<span class="func">SetFilePointerEx</span>(hFile, <span class="string">0</span>, ...);              <span class="comment">// Seek② 回到 Header</span>
+<span class="func">WriteFile</span>(hFile, &header, <span class="string">4096</span>, ...);
+<span class="func">FlushFileBuffers</span>(hFile);</div>
+  </div>
+</section>
+
+<section id="plan1-eval" class="section">
+  <div class="card">
+    <h3>方案评估</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      启动碎片整理、三层空间隔离、单文件句柄、MFT 开销等为<a href="#startup-defrag" style="color:var(--primary);">所有方案共有优势</a>，以下仅列方案一独有的优缺点。
+    </p>
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-green">独特优点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>Sequence 全量审计</strong>：全局单调递增序列号，可精确定位任意历史数据，适合合规场景</li>
+          <li><strong>崩溃自愈更完善</strong>：sequence + Index 区 CRC 扫描，即使 Header 损坏也能从 Index 重建状态</li>
+          <li><strong>数据+索引连续写入</strong>：交错布局，一次 Seek 即可写完数据+索引，仅 2 次 Seek/图</li>
+          <li><strong>固定偏移计算</strong>：slot 大小固定，偏移 = HEADER_SIZE + pos × (blockSize + 128)，无需查表</li>
+        </ul>
+      </div>
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-red">独特缺点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>固定块大小浪费空间</strong>：空间利用率约 70%（BlockSize = 最大图像 × 安全系数）</li>
+          <li><strong>不支持变长存储</strong>：每图固定占一个 slot，小图浪费、超大图无法存储</li>
+          <li><strong>顺序扫描 Index 需跳跃</strong>：崩溃恢复扫描 Index 时需跳过 blockSize 间隙（仅启动时执行一次）</li>
+          <li><strong>单点故障</strong>：单文件损坏则全部数据丢失</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ================================================================================== -->
+<!-- 方案二 -->
+<!-- ================================================================================== -->
+<section id="plan2" class="section">
+  <h2 class="section-title">方案二：单文件内部块管理环形缓冲区</h2>
+  <p class="section-subtitle">创建一个独立的大文件，在文件内部自行管理 Block 分配和环形覆盖</p>
+</section>
+
+<section id="plan2-anim" class="section">
+  <div class="anim-container">
+    <h3>原理动画</h3>
+    <div class="anim-label">一个大文件内部划分为 N 个 Block + 一个 Header。写入指针在 Block 间顺序移动，写满回到头部。磁盘上只有一个文件，文件系统开销降到最低。</div>
+    <canvas id="canvas2" width="860" height="430"></canvas>
+    <div class="anim-controls">
+      <button onclick="anim2_play()">▶ 播放</button>
+      <button onclick="anim2_pause()">⏸ 暂停</button>
+      <button onclick="anim2_reset()">↺ 重置</button>
+      <button onclick="anim2_speed(1)">1×</button>
+      <button onclick="anim2_speed(2)">2×</button>
+      <button onclick="anim2_speed(4)">4×</button>
+    </div>
+    <div class="anim-legend">
+      <span><span class="legend-dot" style="background:#6366f1;"></span> Header (元数据)</span>
+      <span><span class="legend-dot" style="background:#e2e8f0;"></span> 空闲 Block</span>
+      <span><span class="legend-dot" style="background:#10b981;"></span> 已写入 Block</span>
+      <span><span class="legend-dot" style="background:#3b82f6;"></span> 当前写入</span>
+      <span><span class="legend-dot" style="background:#f59e0b;"></span> 变长实际数据</span>
+    </div>
+  </div>
+</section>
+
+<section id="plan2-principle" class="section">
+  <div class="card">
+    <h3>方案二特有设计</h3>
+    <div class="callout callout-info">
+      <strong>启动碎片整理</strong>为所有方案共有机制，详见<a href="#startup-defrag" style="color:var(--primary);">启动碎片整理章节</a>。以下仅描述方案二的独特设计。
+    </div>
+
+    <h4>1. 文件内部布局</h4>
+    <div class="code-block">
+<span class="comment">/* 文件布局 (大小 = Header_Size + Block_Size × Block_Count) */</span>
+<span class="comment">// Offset 0: Header (4KB)</span>
+<span class="keyword">struct</span> <span class="type">FileHeader</span> {
+    <span class="type">uint32_t</span> magic;           <span class="comment">// 0x52494E47 ("RING")</span>
+    <span class="type">uint32_t</span> version;         <span class="comment">// 版本号</span>
+    <span class="type">uint64_t</span> block_size;      <span class="comment">// 每个 block 最大字节数</span>
+    <span class="type">uint32_t</span> block_count;     <span class="comment">// block 总数</span>
+    <span class="type">uint32_t</span> write_cursor;    <span class="comment">// 当前写入位置 (0 ~ N-1)</span>
+    <span class="type">uint32_t</span> crc32;           <span class="comment">// Header 自身校验</span>
+};
+
+<span class="comment">// Offset 4KB: Block Metadata Array (N 条记录)</span>
+<span class="keyword">struct</span> <span class="type">BlockMeta</span> {
+    <span class="type">uint64_t</span> timestamp;      <span class="comment">// 写入时间 (FILETIME)</span>
+    <span class="type">uint32_t</span> actual_size;    <span class="comment">// 实际图像大小 (≤ block_size)</span>
+    <span class="type">uint32_t</span> data_crc32;     <span class="comment">// 图像数据校验</span>
+    <span class="type">uint8_t</span>  flags;          <span class="comment">// 0=空闲, 1=有效, 2=损坏</span>
+};
+
+<span class="comment">// Offset 4KB + N×sizeof(BlockMeta): Block 0 Data (block_size bytes)</span>
+<span class="comment">// Offset 4KB + N×sizeof(BlockMeta) + 1×block_size: Block 1 Data</span>
+<span class="comment">// ...</span></div>
+
+    <h4>2. 与方案一的本质区别</h4>
+    <p>方案一和方案二的核心区别在于<strong>元数据（Index / BlockMeta）的位置</strong>：</p>
+    <table style="margin:12px 0;">
+      <tr><th></th><th>方案一（交错布局）</th><th>方案二（集中布局）</th></tr>
+      <tr><td>元数据叫法</td><td>IndexEntry (128B)</td><td>BlockMeta (结构体)</td></tr>
+      <tr><td>存放位置</td><td>紧跟在每个 Block 后面</td><td>集中在 Header 之后、Block 区之前</td></tr>
+      <tr><td>块大小</td><td>固定（slot = blockSize + 128）</td><td>可变（实际大小 ≤ blockSize）</td></tr>
+      <tr><td>写入路径</td><td>Seek→slot → 数据+Index 连续写 → Seek→Header</td><td>Seek→Block → 写数据 → Seek→前部 → 写BlockMeta+Header</td></tr>
+      <tr><td>空间利用率</td><td>~70%（固定块浪费）</td><td>~99%（变长存储）</td></tr>
+      <tr><td>崩溃恢复</td><td>扫描 Index（需跳过 blockSize 间隙）</td><td>顺序读 BlockMeta 区（连续）</td></tr>
+    </table>
+    <p style="font-size:13px; color:var(--text-secondary);">方案二的 BlockMeta 本质上就是方案一的 Index——都是记录每张图的时间戳、实际大小、校验值。只是方案一把它分散放在每个 Block 后，方案二把它集中放在文件前部。</p>
+
+    <h4>3. 写入操作对比</h4>
+    <canvas id="canvas2b" width="860" height="280"></canvas>
+    <div class="anim-legend">
+      <span><span class="legend-dot" style="background:#6366f1;"></span> 单文件方案：集中连续写入</span>
+      <span><span class="legend-dot" style="background:#ef4444;"></span> 传统多文件：分散随机写入</span>
+    </div>
+    <p style="margin-top:8px; font-size:13px; color:var(--text-secondary);">
+      上图对比：三种单文件方案的写入头在磁盘上几乎线性移动（机械臂无需大幅摆动）；传统多文件方式中每个文件位于不同物理位置，写入头需要频繁寻道。
+    </p>
+
+    <h4>4. 关键 Windows API 调用链</h4>
+    <div class="code-block">
+<span class="comment">// 1. 创建大文件并预分配空间</span>
+<span class="type">HANDLE</span> hFile = <span class="func">CreateFileW</span>(<span class="string">L"D:\\vehicle_images.dat"</span>,
+    GENERIC_READ | GENERIC_WRITE, <span class="string">0</span>, <span class="string">NULL</span>, CREATE_ALWAYS,
+    FILE_FLAG_NO_BUFFERING, <span class="string">NULL</span>);  <span class="comment">// 无缓冲，直接磁盘 I/O</span>
+
+<span class="type">LARGE_INTEGER</span> fileSize;
+fileSize.QuadPart = headerSize + (<span class="type">uint64_t</span>)blockSize * blockCount;
+<span class="func">SetFilePointerEx</span>(hFile, fileSize, <span class="string">NULL</span>, FILE_BEGIN);
+<span class="func">SetEndOfFile</span>(hFile);  <span class="comment">// 一次分配全部空间</span>
+
+<span class="comment">// 2. 写入 Block (通过 lseek + write)</span>
+<span class="type">uint64_t</span> blockOffset = headerSize + writeCursor * blockSize;
+<span class="func">SetFilePointerEx</span>(hFile, blockOffset, ...);
+<span class="func">WriteFile</span>(hFile, imageData, actualSize, &written, <span class="string">NULL</span>);
+
+<span class="comment">// 3. 更新 Header (每次写入后原子更新 write_cursor)</span>
+<span class="func">SetFilePointerEx</span>(hFile, <span class="string">0</span>, ...);
+<span class="func">WriteFile</span>(hFile, &header, <span class="keyword">sizeof</span>(header), ...);
+<span class="func">FlushFileBuffers</span>(hFile);  <span class="comment">// 确保元数据落盘</span></div>
+  </div>
+</section>
+
+<section id="plan2-eval" class="section">
+  <div class="card">
+    <h3>方案评估</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      启动碎片整理、三层空间隔离、单文件句柄、MFT 开销等为<a href="#startup-defrag" style="color:var(--primary);">所有方案共有优势</a>，以下仅列方案二独有的优缺点。
+    </p>
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-green">独特优点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>变长存储，空间利用率高</strong>：每 Block 可存储 ≤ blockSize 的任意大小，利用率 ~99%</li>
+          <li><strong>BlockMeta 集中，崩溃恢复快</strong>：顺序读取文件前部即可获得全部元数据，无需跳跃扫描</li>
+          <li><strong>BlockMeta + Header 在同一次 Seek 中更新</strong>：二者物理紧邻，回写元数据时一次定位即可</li>
+          <li><strong>支持 FILE_FLAG_NO_BUFFERING</strong>：可绕过系统缓存直接磁盘 I/O（方案三的内存映射不兼容此标志）</li>
+        </ul>
+      </div>
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-red">独特缺点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>每次写入 WriteFile 系统调用</strong>：至少 2 次 Seek + 3 次 WriteFile，用户态↔内核态切换约 4 次</li>
+          <li><strong>BlockMeta 区大小固定</strong>：创建后 N 固定，无法动态扩展 Block 数量</li>
+          <li><strong>单点故障</strong>：单文件损坏则全部数据丢失</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 启动碎片整理（所有方案共有） ===== -->
+<section id="startup-defrag" class="section">
+  <h2 class="section-title">启动碎片整理 <span class="tag tag-green">所有方案共有</span></h2>
+  <p class="section-subtitle">单文件预分配的前提：确保获得物理连续的磁盘区域。三种方案在启动时都需要执行以下步骤。</p>
+
+  <div class="card">
+    <h3>五步启动序列</h3>
+    <ol class="steps">
+      <li><strong>分析空闲空间 — FSCTL_GET_VOLUME_BITMAP</strong><br>向卷发送 IOCTL 获取空闲簇位图，每一位代表一个簇的分配状态。遍历位图找到最大连续空闲区域，判断是否 ≥ 目标文件大小。</li>
+      <li><strong>创建并预分配 — SetFileValidData</strong><br>用 <code>CreateFile(dwShareMode=0)</code> 独占创建文件，然后 <code>SetFileValidData</code> 瞬时标记有效数据大小（需 SE_MANAGE_VOLUME_NAME 特权），NTFS 立刻为全部字节分配物理簇。无特权时回退到 SetEndOfFile + 分块写零（64MB Overlapped I/O）。</li>
+      <li><strong>验证物理连续性 — FSCTL_GET_RETRIEVAL_POINTERS</strong><br>查询文件的物理 extent 布局。extent=1 完美连续；2~3 可接受；≥4 触发步骤④强制整理。</li>
+      <li><strong>碎片整理（如需）— FSCTL_MOVE_FILE</strong><br>向卷发送 IOCTL，让 NTFS 将文件簇重排到连续区域。如果仍失败 → 删除文件重建。</li>
+      <li><strong>独占锁定 — dwShareMode=0 + LockFileEx</strong><br>确保其他进程无法打开此文件，配合 NTFS 簇分配形成三层隔离。</li>
+    </ol>
+
+    <table style="margin-top:16px;">
+      <tr><th>Extent 数量</th><th>评级</th><th>处理</th></tr>
+      <tr><td>= 1</td><td><span class="tag tag-green">完美连续</span></td><td>无需处理，直接进入运行</td></tr>
+      <tr><td>2 ~ 3</td><td><span class="tag tag-blue">可接受</span></td><td>记录日志，继续运行</td></tr>
+      <tr><td>≥ 4</td><td><span class="tag tag-yellow">需要整理</span></td><td>触发 FSCTL_MOVE_FILE 强制重排</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>三层空间隔离（所有方案共有）</h3>
+    <div class="layer-stack">
+      <div class="layer-item">
+        <strong>① NTFS 簇分配层</strong>
+        <div class="layer-desc">文件预分配后，NTFS 将这些簇标记为"已占用"，其他文件无法使用此物理区域。</div>
+      </div>
+      <div class="layer-item">
+        <strong>② 文件句柄层 — dwShareMode=0</strong>
+        <div class="layer-desc">打开文件时禁止读写删除共享，其他进程（包括资源管理器）无法打开此文件。</div>
+      </div>
+      <div class="layer-item">
+        <strong>③ 字节范围锁 — LockFileEx</strong>
+        <div class="layer-desc">对整个文件加排他锁，进程内提供额外防护层。</div>
+      </div>
+    </div>
+    <div class="callout callout-info">
+      <strong>关键安全保障：</strong>三层隔离确保该磁盘区域从 NTFS 位图到文件句柄再到字节范围均被独占。硬件层面，其他程序的写入无法触及这些扇区——因为 NTFS 已经将它们标记为已分配。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>关键 Windows API（所有方案共有）</h3>
+    <div class="code-block">
+<span class="comment">// ═══ 启动初始化（所有方案均需执行） ═══</span>
+<span class="comment">// ① 分析空闲位图</span>
+<span class="type">DWORD</span> bytesReturned;
+<span class="func">DeviceIoControl</span>(hVolume, <span class="string">FSCTL_GET_VOLUME_BITMAP</span>, ...);
+
+<span class="comment">// ② 创建文件并瞬时预分配（需特权）</span>
+<span class="type">HANDLE</span> hFile = <span class="func">CreateFileW</span>(<span class="string">L"D:\vehicle_images.dat"</span>,
+    GENERIC_READ | GENERIC_WRITE, <span class="string">0</span>, <span class="string">NULL</span>, CREATE_ALWAYS,
+    FILE_ATTRIBUTE_NORMAL, <span class="string">NULL</span>);  <span class="comment">// dwShareMode=0 独占</span>
+<span class="func">SetFileValidData</span>(hFile, totalSize);  <span class="comment">// 瞬时分配，NTFS 标记簇已用</span>
+
+<span class="comment">// ③ 验证物理连续性</span>
+<span class="func">DeviceIoControl</span>(hFile, <span class="string">FSCTL_GET_RETRIEVAL_POINTERS</span>, ...);
+<span class="comment">// → 返回 Extent 数组，检查 extent 数量</span>
+
+<span class="comment">// ④ 如需整理（extent ≥ 4）</span>
+<span class="func">DeviceIoControl</span>(hVolume, <span class="string">FSCTL_MOVE_FILE</span>, ...);
+
+<span class="comment">// ⑤ 字节范围锁</span>
+<span class="func">LockFileEx</span>(hFile, LOCKFILE_EXCLUSIVE_LOCK, <span class="string">0</span>, totalSize, ...);
+
+<span class="comment">// ═══ 以上步骤完成后，文件物理布局永不变化 ═══</span>
+<span class="comment">// 各方案的差异仅在后续的「写入方式」</span></div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ================================================================================== -->
+<!-- 方案三 -->
+<!-- ================================================================================== -->
+<section id="plan3" class="section">
+  <h2 class="section-title">方案三：单文件 + Memory-Mapped File 环形缓冲区 <span class="badge-rec">推荐</span></h2>
+  <p class="section-subtitle">将单个大文件映射到进程虚拟地址空间，以内存操作替代文件 I/O，实现零拷贝写入</p>
+</section>
+
+<section id="plan3-anim" class="section">
+  <div class="anim-container">
+    <h3>原理动画</h3>
+    <div class="anim-label">左侧是进程虚拟地址空间（用户态），右侧是磁盘物理文件。写入操作直接操作映射内存，OS 异步将脏页刷回磁盘。</div>
+    <canvas id="canvas3" width="860" height="480"></canvas>
+    <div class="anim-controls">
+      <button onclick="anim3_play()">▶ 播放</button>
+      <button onclick="anim3_pause()">⏸ 暂停</button>
+      <button onclick="anim3_reset()">↺ 重置</button>
+      <button onclick="anim3_speed(1)">1×</button>
+      <button onclick="anim3_speed(2)">2×</button>
+      <button onclick="anim3_speed(4)">4×</button>
+    </div>
+    <div class="anim-legend">
+      <span><span class="legend-dot" style="background:#8b5cf6;"></span> 虚拟内存页（用户态）</span>
+      <span><span class="legend-dot" style="background:#10b981;"></span> 映射的物理页（内核态）</span>
+      <span><span class="legend-dot" style="background:#f59e0b;"></span> 脏页（待刷盘）</span>
+      <span><span class="legend-dot" style="background:#3b82f6;"></span> 磁盘文件</span>
+    </div>
+  </div>
+</section>
+
+<section id="plan3-principle" class="section">
+  <div class="card">
+    <h3>方案三特有设计</h3>
+    <div class="callout callout-info">
+      <strong>启动碎片整理</strong>为所有方案共有机制，详见<a href="#startup-defrag" style="color:var(--primary);">启动碎片整理章节</a>。以下仅描述方案三的独特设计。
+    </div>
+
+    <h4>1. 内存映射的核心机制</h4>
+    <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap; margin:16px 0;">
+      <div style="flex:1; min-width:300px;">
+        <div class="layer-stack">
+          <div class="layer-item">
+            <strong>① 用户态虚拟地址空间</strong>
+            <div class="layer-desc">进程看到的是一块连续内存（如 0x000001E000000000），通过指针直接读写。</div>
+          </div>
+          <div class="layer-item">
+            <strong>② 页表映射（Page Table）</strong>
+            <div class="layer-desc">CPU 的 MMU 将虚拟地址翻译为物理地址。未访问的页标记为"缺页"，触发 Page Fault。</div>
+          </div>
+          <div class="layer-item">
+            <strong>③ 内存管理器（Memory Manager）</strong>
+            <div class="layer-desc">Windows 内核的 Mm 组件管理 Section Object，将文件页面映射到物理内存。</div>
+          </div>
+          <div class="layer-item">
+            <strong>④ 缓存管理器（Cache Manager）</strong>
+            <div class="layer-desc">Cc 组件负责脏页回写（Lazy Writer），每秒钟将修改过的页面刷回磁盘。</div>
+          </div>
+          <div class="layer-item">
+            <strong>⑤ 磁盘文件</strong>
+            <div class="layer-desc">NTFS 上的实际文件，作为映射的后备存储（Backing Store）。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-info" style="margin-top:16px;">
+      <strong>虚拟内存 ≠ 物理内存（关键澄清）</strong>
+      <ul style="font-size:13px; padding-left:16px; margin-top:4px;">
+        <li><code>MapViewOfFile</code> 映射的是<strong>虚拟地址空间</strong>，不是物理 RAM</li>
+        <li>映射 2TB 文件 → 消耗 2TB 虚拟地址空间（64 位有 128TB，完全够用）</li>
+        <li>物理内存仅在<strong>实际访问时按需分配</strong>（4KB 页粒度），不访问就不占物理内存</li>
+        <li>写入时：只占当前正在操作的那几页（几十 KB 物理内存），其余页面在磁盘上</li>
+        <li>OS 内存管理器自动换入换出，不活跃的页会被回收——就像 OS 帮你做了「分段映射」</li>
+      </ul>
+    </div>
+
+    <h4>2. 零拷贝写入过程</h4>
+    <canvas id="canvas3b" width="860" height="260"></canvas>
+    <p style="margin-top:8px; font-size:13px; color:var(--text-secondary); text-align:center;">
+      对比传统 WriteFile（用户缓冲区→内核缓冲区→磁盘）与内存映射（用户内存直接映射到磁盘页，减少一次拷贝）
+    </p>
+
+    <h4>3. 关键 Windows API</h4>
+    <div class="code-block">
+<span class="comment">// 步骤 1: 创建/打开文件</span>
+<span class="type">HANDLE</span> hFile = <span class="func">CreateFileW</span>(<span class="string">L"D:\\vehicle_images.dat"</span>,
+    GENERIC_READ | GENERIC_WRITE, <span class="string">0</span>, <span class="string">NULL</span>,
+    OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, <span class="string">NULL</span>);
+
+<span class="comment">// 步骤 2: 设置文件大小（一次性分配全部空间）</span>
+<span class="type">LARGE_INTEGER</span> sz;
+sz.QuadPart = HEADER_SIZE + (<span class="type">uint64_t</span>)cfg.blockSize * cfg.blockCount;
+<span class="func">SetFilePointerEx</span>(hFile, sz, <span class="string">NULL</span>, FILE_BEGIN);
+<span class="func">SetEndOfFile</span>(hFile);
+
+<span class="comment">// 步骤 3: 创建文件映射对象（内核 Section Object）</span>
+<span class="type">HANDLE</span> hMapping = <span class="func">CreateFileMappingW</span>(hFile,
+    <span class="string">NULL</span>,                        <span class="comment">// 默认安全描述符</span>
+    PAGE_READWRITE,              <span class="comment">// 可读写</span>
+    (<span class="type">DWORD</span>)(sz.QuadPart >> <span class="string">32</span>),   <span class="comment">// 大小高 32 位</span>
+    (<span class="type">DWORD</span>)(sz.QuadPart & <span class="string">0xFFFFFFFF</span>), <span class="comment">// 大小低 32 位</span>
+    <span class="string">NULL</span>);
+
+<span class="comment">// 步骤 4: 映射到进程虚拟地址空间</span>
+<span class="type">uint8_t</span>* mappedView = (<span class="type">uint8_t</span>*)<span class="func">MapViewOfFile</span>(hMapping,
+    FILE_MAP_READ | FILE_MAP_WRITE,
+    <span class="string">0</span>, <span class="string">0</span>,                     <span class="comment">// 从文件开头开始映射</span>
+    <span class="string">0</span>);                        <span class="comment">// 映射整个文件</span>
+
+<span class="comment">// 步骤 5: 写入图像 — 直接内存拷贝即可！</span>
+<span class="type">uint64_t</span> offset = HEADER_SIZE + writeCursor * blockSize;
+<span class="func">memcpy</span>(mappedView + offset, imageData, actualSize);  <span class="comment">// 就这一行！</span>
+
+<span class="comment">// 步骤 6: 更新 Header（同样是内存操作）</span>
+<span class="type">FileHeader</span>* header = (<span class="type">FileHeader</span>*)mappedView;
+header->write_cursor = (writeCursor + <span class="string">1</span>) % blockCount;
+header->blocks[writeCursor].actual_size = actualSize;
+header->blocks[writeCursor].timestamp = <span class="func">GetTickCount64</span>();
+
+<span class="comment">// 步骤 7: 强制刷盘（可选，OS 会自动回写）</span>
+<span class="func">FlushViewOfFile</span>(mappedView + offset, actualSize);
+<span class="comment">// 或使用 FlushFileBuffers(hFile) 刷整个文件</span></div>
+
+    <h4>3.5 如何读取图像</h4>
+    <p>通过同样的映射指针直接读取，无需 Seek、无需 ReadFile。就像访问一个巨大的 <code>uint8_t[]</code> 数组：</p>
+    <div class="code-block">
+<span class="comment">// 读取指定 Block 的图像 — 一次 memcpy 即可</span>
+<span class="type">uint32_t</span> idx = ...;  <span class="comment">// 目标 Block 索引</span>
+<span class="type">BlockMeta</span>* meta = (<span class="type">BlockMeta</span>*)(mappedView + HEADER_SIZE) + idx;
+<span class="type">uint64_t</span> blockOffset = HEADER_SIZE + metaSize + idx * blockSize;
+<span class="type">std::vector</span>&lt;<span class="type">uint8_t</span>&gt; buffer(meta-&gt;actual_size);
+<span class="func">memcpy</span>(buffer.data(), mappedView + blockOffset, meta-&gt;actual_size);
+<span class="comment">// → 拿到完整 JPEG 数据，可直接保存为 .jpg 文件或用 StbImage 解码显示</span>
+
+<span class="comment">// 如果需要按时间范围查找，遍历 BlockMeta 数组即可：</span>
+<span class="keyword">for</span> (<span class="type">uint32_t</span> i = <span class="string">0</span>; i &lt; blockCount; i++) {
+    <span class="keyword">if</span> (meta[i].timestamp &gt;= startTime && meta[i].timestamp &lt;= endTime) {
+        <span class="comment">// 找到匹配的 Block，按上述方式读取</span>
+    }
+}</div>
+
+    <h4>4. 大文件分段映射策略</h4>
+    <p>32 位进程的虚拟地址空间仅 2-4GB，无法映射超大文件。需要分段映射（Sliding Window）：</p>
+    <div class="code-block">
+<span class="comment">// 分段映射：每次只映射当前写入区域附近的窗口</span>
+<span class="keyword">const</span> <span class="type">uint64_t</span> WINDOW_SIZE = <span class="string">256</span> * <span class="string">1024</span> * <span class="string">1024</span>;  <span class="comment">// 256MB 窗口</span>
+
+<span class="type">uint64_t</span> blockOffset = HEADER_SIZE + writeCursor * blockSize;
+<span class="type">uint64_t</span> windowBase = (blockOffset / WINDOW_SIZE) * WINDOW_SIZE;
+
+<span class="comment">// 取消旧映射</span>
+<span class="func">UnmapViewOfFile</span>(mappedView);
+<span class="comment">// 映射新窗口</span>
+mappedView = (<span class="type">uint8_t</span>*)<span class="func">MapViewOfFile</span>(hMapping,
+    FILE_MAP_READ | FILE_MAP_WRITE,
+    (<span class="type">DWORD</span>)(windowBase >> <span class="string">32</span>),
+    (<span class="type">DWORD</span>)(windowBase & <span class="string">0xFFFFFFFF</span>),
+    WINDOW_SIZE);
+<span class="comment">// 对 mappedView[blockOffset - windowBase] 进行读写</span></div>
+  </div>
+</section>
+
+<section id="plan3-eval" class="section">
+  <div class="card">
+    <h3>方案评估</h3>
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-green">优点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>零拷贝写入</strong> — memcpy 替代 WriteFile，无内核切换开销</li>
+          <li><strong>极简代码</strong> — 写入仅需一行 memcpy + Header 更新</li>
+          <li><strong>OS 自动回写</strong> — Lazy Writer 线程自动刷脏页，无需手动 Flush</li>
+          <li><strong>继承方案二全部优点</strong> — 单文件、单 MFT、高连续性</li>
+          <li><strong>读写统一模型</strong> — 读/写均通过指针，无需 Seek</li>
+        </ul>
+      </div>
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-red">缺点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>32 位进程受限</strong> — 虚拟地址空间 2-4GB，需分段映射</li>
+          <li><strong>缺页中断延迟</strong> — 首次访问新页触发 Page Fault（可预触发达避免）</li>
+          <li><strong>刷盘时机不确定</strong> — OS 决定何时回写，断电可能丢失未刷数据</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout callout-info" style="margin-top:16px;">
+      <strong>64 位进程不受虚拟地址空间限制</strong>。Windows x64 提供 128TB 虚拟地址空间，可以一次性映射远超物理内存的文件。强烈推荐使用 64 位编译。
+    </div>
+  </div>
+</section>
+
+<!-- ===== 启动碎片整理（所有方案共有） ===== -->
+<section id="startup-defrag" class="section">
+  <h2 class="section-title">启动碎片整理 <span class="tag tag-green">所有方案共有</span></h2>
+  <p class="section-subtitle">单文件预分配的前提：确保获得物理连续的磁盘区域。三种方案在启动时都需要执行以下步骤。</p>
+
+  <div class="card">
+    <h3>五步启动序列</h3>
+    <ol class="steps">
+      <li><strong>分析空闲空间 — FSCTL_GET_VOLUME_BITMAP</strong><br>向卷发送 IOCTL 获取空闲簇位图，每一位代表一个簇的分配状态。遍历位图找到最大连续空闲区域，判断是否 ≥ 目标文件大小。</li>
+      <li><strong>创建并预分配 — SetFileValidData</strong><br>用 <code>CreateFile(dwShareMode=0)</code> 独占创建文件，然后 <code>SetFileValidData</code> 瞬时标记有效数据大小（需 SE_MANAGE_VOLUME_NAME 特权），NTFS 立刻为全部字节分配物理簇。无特权时回退到 SetEndOfFile + 分块写零（64MB Overlapped I/O）。</li>
+      <li><strong>验证物理连续性 — FSCTL_GET_RETRIEVAL_POINTERS</strong><br>查询文件的物理 extent 布局。extent=1 完美连续；2~3 可接受；≥4 触发步骤④强制整理。</li>
+      <li><strong>碎片整理（如需）— FSCTL_MOVE_FILE</strong><br>向卷发送 IOCTL，让 NTFS 将文件簇重排到连续区域。如果仍失败 → 删除文件重建。</li>
+      <li><strong>独占锁定 — dwShareMode=0 + LockFileEx</strong><br>确保其他进程无法打开此文件，配合 NTFS 簇分配形成三层隔离。</li>
+    </ol>
+
+    <table style="margin-top:16px;">
+      <tr><th>Extent 数量</th><th>评级</th><th>处理</th></tr>
+      <tr><td>= 1</td><td><span class="tag tag-green">完美连续</span></td><td>无需处理，直接进入运行</td></tr>
+      <tr><td>2 ~ 3</td><td><span class="tag tag-blue">可接受</span></td><td>记录日志，继续运行</td></tr>
+      <tr><td>≥ 4</td><td><span class="tag tag-yellow">需要整理</span></td><td>触发 FSCTL_MOVE_FILE 强制重排</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>三层空间隔离（所有方案共有）</h3>
+    <div class="layer-stack">
+      <div class="layer-item">
+        <strong>① NTFS 簇分配层</strong>
+        <div class="layer-desc">文件预分配后，NTFS 将这些簇标记为"已占用"，其他文件无法使用此物理区域。</div>
+      </div>
+      <div class="layer-item">
+        <strong>② 文件句柄层 — dwShareMode=0</strong>
+        <div class="layer-desc">打开文件时禁止读写删除共享，其他进程（包括资源管理器）无法打开此文件。</div>
+      </div>
+      <div class="layer-item">
+        <strong>③ 字节范围锁 — LockFileEx</strong>
+        <div class="layer-desc">对整个文件加排他锁，进程内提供额外防护层。</div>
+      </div>
+    </div>
+    <div class="callout callout-info">
+      <strong>关键安全保障：</strong>三层隔离确保该磁盘区域从 NTFS 位图到文件句柄再到字节范围均被独占。硬件层面，其他程序的写入无法触及这些扇区——因为 NTFS 已经将它们标记为已分配。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>关键 Windows API（所有方案共有）</h3>
+    <div class="code-block">
+<span class="comment">// ═══ 启动初始化（所有方案均需执行） ═══</span>
+<span class="comment">// ① 分析空闲位图</span>
+<span class="type">DWORD</span> bytesReturned;
+<span class="func">DeviceIoControl</span>(hVolume, <span class="string">FSCTL_GET_VOLUME_BITMAP</span>, ...);
+
+<span class="comment">// ② 创建文件并瞬时预分配（需特权）</span>
+<span class="type">HANDLE</span> hFile = <span class="func">CreateFileW</span>(<span class="string">L"D:\vehicle_images.dat"</span>,
+    GENERIC_READ | GENERIC_WRITE, <span class="string">0</span>, <span class="string">NULL</span>, CREATE_ALWAYS,
+    FILE_ATTRIBUTE_NORMAL, <span class="string">NULL</span>);  <span class="comment">// dwShareMode=0 独占</span>
+<span class="func">SetFileValidData</span>(hFile, totalSize);  <span class="comment">// 瞬时分配，NTFS 标记簇已用</span>
+
+<span class="comment">// ③ 验证物理连续性</span>
+<span class="func">DeviceIoControl</span>(hFile, <span class="string">FSCTL_GET_RETRIEVAL_POINTERS</span>, ...);
+<span class="comment">// → 返回 Extent 数组，检查 extent 数量</span>
+
+<span class="comment">// ④ 如需整理（extent ≥ 4）</span>
+<span class="func">DeviceIoControl</span>(hVolume, <span class="string">FSCTL_MOVE_FILE</span>, ...);
+
+<span class="comment">// ⑤ 字节范围锁</span>
+<span class="func">LockFileEx</span>(hFile, LOCKFILE_EXCLUSIVE_LOCK, <span class="string">0</span>, totalSize, ...);
+
+<span class="comment">// ═══ 以上步骤完成后，文件物理布局永不变化 ═══</span>
+<span class="comment">// 各方案的差异仅在后续的「写入方式」</span></div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ================================================================================== -->
+<!-- 方案四 -->
+<!-- ================================================================================== -->
+<section id="plan4" class="section">
+  <h2 class="section-title">方案四：预分配 + 直接 I/O 环形缓冲区 <span class="badge-rec">数据库经典</span></h2>
+  <p class="section-subtitle">预分配消除元数据抖动 + 直接 I/O 绕过 Page Cache → 零 CPU 拷贝 + 零运行时延迟抖动</p>
+</section>
+
+<section id="plan4-principle" class="section">
+  <div class="card">
+    <h3>方案四特有设计</h3>
+    <div class="callout callout-info">
+      <strong>启动碎片整理</strong>为所有方案共有机制，详见<a href="#startup-defrag" style="color:var(--primary);">启动碎片整理章节</a>。以下仅描述方案四的独特设计。
+    </div>
+
+    <h4>1. 核心思想：预分配 + 直接 I/O 的组合拳</h4>
+    <p>方案四将 <strong>预分配（Pre-allocation）</strong> 和 <strong>直接 I/O（Direct I/O, O_DIRECT）</strong> 组合使用，这是 MySQL InnoDB、Oracle 等主流数据库的经典做法。</p>
+    <div class="bg-knowledge-grid" style="margin-top:16px;">
+      <div class="bg-card" style="border-left:4px solid var(--success);">
+        <h4>预分配做的事</h4>
+        <p>通过 <code>SetFileValidData</code> / <code>fallocate</code> 一次性占好连续磁盘空间，建立物理块和元数据的映射。之后的写入不再触发块分配、位图更新、inode 扩展 → <strong>消除运行时延迟抖动</strong>。</p>
+      </div>
+      <div class="bg-card" style="border-left:4px solid var(--primary);">
+        <h4>直接 I/O 做的事</h4>
+        <p>通过 <code>FILE_FLAG_NO_BUFFERING</code> 打开文件，数据<strong>完全绕过 Page Cache</strong>，直接在用户 Buffer 和磁盘之间通过 DMA 传输 → <strong>零 CPU 拷贝 + 不污染缓存</strong>。</p>
+      </div>
+    </div>
+
+    <h4>2. 与方案二的本质区别</h4>
+    <p>方案二可以选择是否使用 <code>FILE_FLAG_NO_BUFFERING</code>，但方案四<strong>强制使用直接 I/O 并配合应用层自建缓存</strong>。两者在文件布局上相同（Header + BlockMeta + Block 区），差异体现在写入路径：</p>
+    <table style="margin:12px 0;">
+      <tr><th>对比维度</th><th>方案二（默认 Buffered I/O）</th><th>方案四（强制 Direct I/O + 自建缓存）</th></tr>
+      <tr><td>写入 API</td><td><code>WriteFile</code> 经过 Page Cache</td><td><code>WriteFile</code> + <code>FILE_FLAG_NO_BUFFERING</code>，绕过 Page Cache</td></tr>
+      <tr><td>CPU 拷贝</td><td>2 次（用户→Page Cache→磁盘）</td><td class="best">0 次（DMA 直传）</td></tr>
+      <tr><td>缓存管理</td><td>内核自动管理</td><td>应用自建 LRU 缓存</td></tr>
+      <tr><td>地址对齐</td><td>无要求</td><td>Buffer 起始地址、偏移量、大小均需扇区对齐（通常 512B）</td></tr>
+      <tr><td>Page Cache 污染</td><td>会污染（大文件挤走热数据）</td><td class="best">不会</td></tr>
+      <tr><td>适用场景</td><td>通用写入</td><td>自建缓存的大型应用</td></tr>
+    </table>
+
+    <h4>3. 应用层缓存设计</h4>
+    <p>由于直接 I/O 完全绕过 Page Cache，方案四需要应用自己实现缓存层来避免每次都读磁盘：</p>
+    <div class="layer-stack">
+      <div class="layer-item">
+        <strong>① 写入缓冲（Write Buffer）</strong>
+        <div class="layer-desc">积累 N 张图像后才触发一次 DMA 写入，减少磁盘 I/O 次数。缓冲大小 = 扇区大小的整数倍。</div>
+      </div>
+      <div class="layer-item">
+        <strong>② 读取缓存（LRU Cache）</strong>
+        <div class="layer-desc">最近读取的 Block 缓存在用户态内存中，避免重复的磁盘 DMA。缓存上限由可用 RAM 决定。</div>
+      </div>
+      <div class="layer-item">
+        <strong>③ 预读（Read-Ahead）</strong>
+        <div class="layer-desc">读取 Block N 时，异步预读 Block N+1、N+2（顺序访问模式），隐藏磁盘延迟。</div>
+      </div>
+    </div>
+
+    <h4>4. 直接 I/O 的严格对齐要求</h4>
+    <p style="font-size:13px; color:var(--text-secondary);">使用 <code>FILE_FLAG_NO_BUFFERING</code> 时，以下三者必须都是<strong>磁盘扇区大小（通常 512 字节）的整数倍</strong>，否则 WriteFile/ReadFile 会失败：</p>
+    <table style="margin:12px 0; font-size:13px;">
+      <tr><th style="width:200px;">对齐项</th><th>要求</th><th>实现方式</th></tr>
+      <tr><td><strong>用户 Buffer 起始地址</strong></td><td>扇区大小对齐</td><td>使用 <code>_aligned_malloc(size, 512)</code> 分配</td></tr>
+      <tr><td><strong>文件读写偏移量</strong></td><td>扇区大小对齐</td><td>Block 偏移 = Header + Meta 区 + N × blockSize（设计时保证对齐）</td></tr>
+      <tr><td><strong>读写字节数</strong></td><td>扇区大小对齐</td><td>实际写入 = ceil(actualSize / 512) × 512，多余部分填零</td></tr>
+    </table>
+    <div class="callout callout-warning">
+      <strong>注意：</strong>虽然对齐要求增加了编程复杂度，但换来的是<strong>零 CPU 拷贝 + 零 Page Cache 污染</strong>。对长时间运行的图像存储系统，这个代价是值得的。
+    </div>
+
+    <h4>5. 关键 Windows API 调用链</h4>
+    <div class="code-block">
+<span class="comment">// ═══ 方案四：预分配 + 直接 I/O ═══</span>
+<span class="comment">// ① 创建文件，带 FILE_FLAG_NO_BUFFERING 标志</span>
+<span class="type">HANDLE</span> hFile = <span class="func">CreateFileW</span>(<span class="string">L"D:\\vehicle_images.dat"</span>,
+    GENERIC_READ | GENERIC_WRITE, <span class="string">0</span>, <span class="string">NULL</span>, CREATE_ALWAYS,
+    FILE_ATTRIBUTE_NORMAL | <span class="string">FILE_FLAG_NO_BUFFERING</span>,  <span class="comment">// 绕过 Page Cache</span>
+    <span class="string">NULL</span>);
+
+<span class="comment">// ② 预分配文件大小（瞬时完成，需 SE_MANAGE_VOLUME_NAME 特权）</span>
+<span class="func">SetFileValidData</span>(hFile, totalSize);
+<span class="comment">// 此时 NTFS 已完成所有块分配和元数据更新，后续写入零抖动</span>
+
+<span class="comment">// ③ 对齐分配用户态写入缓冲区</span>
+<span class="type">uint8_t</span>* alignedBuf = (<span class="type">uint8_t</span>*)<span class="func">_aligned_malloc</span>(blockSize, <span class="string">512</span>);
+
+<span class="comment">// ④ 准备写入数据（确保大小扇区对齐）</span>
+<span class="type">uint32_t</span> alignedLen = ((actualLen + <span class="string">511</span>) / <span class="string">512</span>) * <span class="string">512</span>;
+<span class="func">memcpy</span>(alignedBuf, imageData, actualLen);
+<span class="func">memset</span>(alignedBuf + actualLen, <span class="string">0</span>, alignedLen - actualLen);  <span class="comment">// 尾部填零</span>
+
+<span class="comment">// ⑤ 直接 I/O 写入（DMA 直传，无 CPU 拷贝，不经过 Page Cache）</span>
+<span class="type">uint64_t</span> blockOffset = HEADER_SIZE + metaSize + writeCursor * blockSize;
+<span class="func">SetFilePointerEx</span>(hFile, blockOffset, ...);
+<span class="func">WriteFile</span>(hFile, alignedBuf, alignedLen, &written, <span class="string">NULL</span>);
+<span class="comment">// → WriteFile 返回时数据已通过 DMA 写入磁盘</span>
+
+<span class="comment">// ⑥ 更新元数据（Header + BlockMeta 也需要对齐写入）</span>
+<span class="func">SetFilePointerEx</span>(hFile, <span class="string">0</span>, ...);
+<span class="func">WriteFile</span>(hFile, alignedMetaBuf, <span class="string">4096</span>, ...);
+
+<span class="comment">// ⑦ 释放对齐缓冲区</span>
+<span class="func">_aligned_free</span>(alignedBuf);</div>
+  </div>
+</section>
+
+<section id="plan4-eval" class="section">
+  <div class="card">
+    <h3>方案评估</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      启动碎片整理、三层空间隔离、单文件句柄、MFT 开销等为<a href="#startup-defrag" style="color:var(--primary);">所有方案共有优势</a>，以下仅列方案四独有的优缺点。
+    </p>
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-green">独特优点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>零 CPU 拷贝</strong>：数据通过 DMA 直传，完全释放 CPU 算力</li>
+          <li><strong>零 Page Cache 污染</strong>：大文件写入不会挤走其他进程的热数据</li>
+          <li><strong>零运行时元数据抖动</strong>：预分配消除了边写边分配带来的延迟毛刺</li>
+          <li><strong>写入延迟可预测</strong>：DMA 传输时间稳定，不受内核缓存策略影响</li>
+          <li><strong>继承方案二变长存储优势</strong>：空间利用率 ~99%</li>
+        </ul>
+      </div>
+      <div style="flex:1; min-width:250px;">
+        <h4><span class="tag tag-red">独特缺点</span></h4>
+        <ul style="font-size:14px; padding-left:20px;">
+          <li><strong>编程复杂度高</strong>：必须处理扇区对齐，所有读写大小必须是 512 的倍数</li>
+          <li><strong>需自建缓存</strong>：失去 Page Cache 的自动预读和缓存功能，应用必须自己实现 LRU</li>
+          <li><strong>小 I/O 性能差</strong>：每次 WriteFile 都触发一次 DMA，小数据批量写入时需要自己合并缓冲</li>
+          <li><strong>单点故障</strong>：单文件损坏则全部数据丢失</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout callout-info" style="margin-top:16px;">
+      <strong>适用场景判断：</strong>如果你的系统需要长期高负载运行（如 7×24 连续写入），且对延迟抖动敏感，方案四是值得投入的。如果系统是间歇性写入且负载不高，方案三的 mmap 更简单实用。
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ================================================================================== -->
+<!-- 方案对比 -->
+<!-- ================================================================================== -->
+<section id="comparison" class="section">
+  <h2 class="section-title">四方案综合对比</h2>
+
+  <div style="overflow-x:auto;">
+  <table class="comparison-table">
+    <thead>
+      <tr><th>对比维度</th><th>方案一：交错布局 + WriteFile</th><th>方案二：两区布局 + WriteFile</th><th class="highlight-col">方案三：两区布局 + 内存映射（推荐）</th><th>方案四：预分配 + 直接 I/O</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>内部文件布局</strong></td><td>Header + Block/Index 交错区</td><td>Header + BlockMeta 区 + Block 区</td><td class="best">同方案二</td><td>同方案二</td></tr>
+      <tr><td><strong>文件数量 / MFT</strong></td><td colspan="4" style="text-align:center;color:var(--text-secondary);">四方案一致：1 个文件，1 条 MFT 记录（~1KB），启动碎片整理为共有机制</td></tr>
+      <tr><td><strong>I/O 方式</strong></td><td>普通 Buffered I/O</td><td>普通 Buf I/O（可选 Direct）</td><td class="best">mmap 内存映射</td><td class="best">预分配 + Direct I/O</td></tr>
+      <tr><td><strong>CPU 拷贝次数</strong></td><td>2 次</td><td>2 次（可选 0 次）</td><td class="best">0 次</td><td class="best">0 次</td></tr>
+	      <tr><td><strong>用户态↔内核态切换</strong></td><td>每次写入约 4 次</td><td>每次写入约 4 次</td><td class="best">0 次（写入时）</td><td>每次写入约 2 次（WriteFile 调用）</td></tr>
+      <tr><td><strong>变长存储</strong></td><td>❌ 固定 Block 大小</td><td class="best">✅ 支持（≤ block_size）</td><td class="best">✅ 支持（≤ block_size）</td><td class="best">✅ 支持（≤ block_size）</td></tr>
+      <tr><td><strong>空间利用率</strong></td><td>~70%（固定块浪费）</td><td class="best">~99%</td><td class="best">~99%</td><td class="best">~99%</td></tr>
+      <tr><td><strong>崩溃恢复</strong></td><td class="best">✅ sequence 扫描自愈</td><td>✅ Header 恢复</td><td>✅ Header 恢复</td><td>✅ Header 恢复</td></tr>
+      <tr><td><strong>地址对齐要求</strong></td><td>❌ 无</td><td>❌ 无（Direct 时需对齐）</td><td>❌ 无</td><td>⚠️ Buffer/偏移/大小均需 512B 对齐</td></tr>
+	      <tr><td><strong>自建缓存需求</strong></td><td>❌ 不需要</td><td>❌ 不需要（Direct 时需要）</td><td>❌ 不需要（OS 管理）</td><td class="best">✅ 需要（应用完全掌控）</td></tr>
+	      <tr><td><strong>Page Cache 污染</strong></td><td>⚠️ 会污染</td><td>⚠️ 会（Direct 时不污染）</td><td>⚠️ 会（依赖 Page Cache）</td><td class="best">✅ 不污染</td></tr>
+      <tr><td><strong>API 简洁度</strong></td><td>中（多次 Seek+Write）</td><td>中（较少 Seek）</td><td class="best">高（memcpy 即写入）</td><td>低（需处理对齐、自建缓存）</td></tr>
+      <tr><td><strong>推荐场景</strong></td><td>需要 sequence 审计 / 合规场景</td><td>32 位系统 / 高空间利用率</td><td class="best">64 位生产环境（最优性能）</td><td>7×24 高负载 / 零延迟抖动要求</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ================================================================================== -->
+<!-- 方案三 vs 方案四深度对比 -->
+<!-- ================================================================================== -->
+<section id="io-comparison" class="section">
+  <h2 class="section-title">方案三 vs 方案四深度对比：内存映射 vs 直接 I/O</h2>
+  <p class="section-subtitle">从存储耗时稳定性、资源占用、存储速度三个维度拆解两种高性能方案的取舍</p>
+
+  <div class="card">
+    <p>从存储耗时的稳定性、资源占用和存储速度这三个维度综合来看，<strong>"预分配+直接IO"方案在工程上通常表现出更好的性能可控性，而"预分配+文件映射"方案则在特定读密集场景下拥有终极的读取速度</strong>。没有绝对的优劣，关键看你的取舍。下面详细拆解。</p>
+  </div>
+
+  <!-- 维度一：存储耗时的稳定性 -->
+  <div class="card">
+    <h3>维度一：存储耗时的稳定性</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">这是两种方案差异最大的地方。</p>
+
+    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:280px; background:#fef2f2; border-radius:8px; padding:16px; border-left:4px solid var(--danger);">
+        <h4><span class="tag tag-red">预分配+文件映射</span> — 非常不稳定，充满长尾延迟</h4>
+        <ul style="font-size:13px; padding-left:16px; margin-top:8px;">
+          <li><strong>写入路径</strong>：修改只是"脏"了内存页，真实磁盘写入由内核后台线程异步刷盘。意味着你<strong>完全无法预测</strong>本次内存写入对应的磁盘 I/O 会在何时发生、耗时多少。当系统积累了大量脏页，后台回写会突然引发大规模 I/O，直接阻塞前台操作，导致瞬间的卡顿。</li>
+          <li style="margin-top:6px;"><strong>读取路径</strong>：首次读取任意地址都会触发<strong>缺页中断</strong>，需要从磁盘加载数据，延迟极高；后续重复读取则是纯内存访问，延迟极低。这种"冷热不均"导致延迟分布呈典型的双峰甚至多峰状态，非常不稳定。</li>
+          <li style="margin-top:6px;"><strong>错误处理</strong>：写入错误通过 <code>SIGBUS</code> 信号异步抛出，极难优雅处理，可能直接导致进程崩溃。</li>
+        </ul>
+      </div>
+      <div style="flex:1; min-width:280px; background:#f0fdf4; border-radius:8px; padding:16px; border-left:4px solid var(--success);">
+        <h4><span class="tag tag-green">预分配+直接 I/O</span> — 高度稳定，延迟可预测</h4>
+        <ul style="font-size:13px; padding-left:16px; margin-top:8px;">
+          <li><strong>路径完全由应用控制</strong>：每一次读写都由你显式发起，你能直接测量出真实的磁盘响应时间。</li>
+          <li style="margin-top:6px;"><strong>无后台干扰</strong>：绕过页面缓存，不存在内核脏页刷盘导致的突发 I/O 阻塞。只要控制好 I/O 队列深度，就能获得非常平滑的延迟曲线，满足 P99、P999 延迟的严格 SLA 要求。</li>
+          <li style="margin-top:6px;"><strong>错误清晰</strong>：所有 I/O 错误通过返回值同步返回，可以轻松地重试或处理。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout callout-info" style="margin-top:16px;">
+      <strong>结论：</strong>追求可预测的、低长尾延迟的稳定性能，直接 I/O 完胜。
+    </div>
+  </div>
+
+  <!-- 维度二：资源占用 -->
+  <div class="card">
+    <h3>维度二：资源占用</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">直接 I/O 在资源控制上更精细、更节省核心资源。</p>
+
+    <div style="overflow-x:auto;">
+    <table class="comparison-table">
+      <thead>
+        <tr><th>资源类型</th><th>预分配+文件映射</th><th>预分配+直接 I/O</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>虚拟地址空间</strong></td>
+          <td><span class="tag tag-red">消耗巨大</span>。映射 1TB 文件需 1TB 连续地址空间。</td>
+          <td><span class="tag tag-green">消耗极低</span>。仅需应用层缓冲区的地址空间，大小可配（如几百 MB）。</td>
+        </tr>
+        <tr>
+          <td><strong>物理内存</strong></td>
+          <td><span class="tag tag-red">不可控占用</span>。热点数据会挤占页面缓存，可能造成系统级缓存污染。被"脏"掉但未刷盘的数据页也占用内存。</td>
+          <td><span class="tag tag-green">精确可控</span>。应用自建缓存池，使用多少内存由你决定，绝不会意外占用多余内存或污染全局缓存。</td>
+        </tr>
+        <tr>
+          <td><strong>页表内存</strong></td>
+          <td><span class="tag tag-red">开销显著</span>。完全访问 1TB 文件，仅页表就需消耗约 2GB 物理内存。</td>
+          <td><span class="tag tag-green">基本可忽略</span>。仅为应用缓冲区维护页表，开销极小。</td>
+        </tr>
+        <tr>
+          <td><strong>CPU 开销</strong></td>
+          <td><span class="tag tag-yellow">访存低，缺页高</span>。命中时是极快的普通访存指令；但缺页中断处理、TLB 未命中遍历页表会消耗 CPU。</td>
+          <td><span class="tag tag-yellow">系统调用开销</span>。每次 I/O 需系统调用，有一定 CPU 成本，但可通过异步 I/O 和批量提交有效分摊。</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="callout callout-info" style="margin-top:16px;">
+      <strong>结论：</strong>直接 I/O 在内存、地址空间等核心资源上更节俭，且完全由应用掌控，是数据库等基础软件的首选。
+    </div>
+  </div>
+
+  <!-- 维度三：存储速度 -->
+  <div class="card">
+    <h3>维度三：存储速度</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">需要分场景讨论，因为两种方案利用了不同的优势。</p>
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+      <!-- 读速度 -->
+      <div style="flex:1; min-width:260px; background:#f8fafc; border-radius:8px; padding:16px; border:1px solid var(--border);">
+        <h4>📖 读速度</h4>
+        <ul style="font-size:13px; padding-left:16px; margin-top:8px;">
+          <li><strong>文件映射：</strong>如果数据<strong>可缓存且访问有局部性</strong>（如反复读取索引的热点部分），它能提供<strong>接近内存带宽的终极读速度</strong>，远超任何 <code>read</code> 调用。因为它直接省去了系统调用和数据拷贝。</li>
+          <li style="margin-top:6px;"><strong>直接 I/O：</strong>即使数据很热，每次读取也需系统调用和 DMA 拷贝，速度不如文件映射的内存访问。<strong>但</strong>它能避免大文件访问时的缓存污染，防止整体性能退化。</li>
+        </ul>
+      </div>
+      <!-- 写速度 -->
+      <div style="flex:1; min-width:260px; background:#f8fafc; border-radius:8px; padding:16px; border:1px solid var(--border);">
+        <h4>✏️ 写速度</h4>
+        <ul style="font-size:13px; padding-left:16px; margin-top:8px;">
+          <li><strong>文件映射：</strong>写入操作只是内存修改，感觉很快，但真正的磁盘写入由内核异步完成。这种"假速度"隐藏了风险，且易造成写放大（修改 1 字节也要写整个 4KB 页）。</li>
+          <li style="margin-top:6px;"><strong>直接 I/O：</strong>写入速度就是真实的磁盘写入速度，结合异步 I/O 和批量提交，可以非常高效地榨干磁盘带宽，且行为完全透明。</li>
+        </ul>
+      </div>
+      <!-- 超大文件与随机访问 -->
+      <div style="flex:1; min-width:260px; background:#f8fafc; border-radius:8px; padding:16px; border:1px solid var(--border);">
+        <h4>🗄️ 超大文件与随机访问</h4>
+        <ul style="font-size:13px; padding-left:16px; margin-top:8px;">
+          <li><strong>文件映射：</strong>在处理超大文件（如 1TB）的随机访问时，会遭遇严重的<strong>TLB 抖动</strong>，频繁的页表遍历会使性能急剧下降。</li>
+          <li style="margin-top:6px;"><strong>直接 I/O：</strong>性能不会因文件变大而衰退，始终由磁盘硬件能力决定。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout callout-info" style="margin-top:16px;">
+      <strong>结论：</strong>只论峰值读速度，文件映射是冠军；论可预测的、稳态的写入速度以及大文件随机访问性能，直接 I/O 更优。
+    </div>
+  </div>
+
+  <!-- 最终选型建议 -->
+  <div class="card" style="border-left:4px solid var(--success);">
+    <h3>最终选型建议</h3>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:12px;">
+      <div style="flex:1; min-width:280px;">
+        <h4><span class="tag tag-green">选预分配+直接 I/O</span></h4>
+        <p style="font-size:13px; margin-top:8px;">如果你在构建<strong>数据库、消息队列、分布式存储引擎</strong>等对延迟稳定性、资源控制和数据一致性有严格要求的系统。这是更专业、更稳妥的选择。</p>
+      </div>
+      <div style="flex:1; min-width:280px;">
+        <h4><span class="tag tag-blue">选预分配+文件映射</span></h4>
+        <p style="font-size:13px; margin-top:8px;">如果你的应用是<strong>搜索引擎、读多写少的 KV 存储、只读数据集分析</strong>，且数据量能被物理内存较好地容纳，你能驾驭其复杂性，追求极致读取性能。或者你需要在多进程间零拷贝共享大型只读数据。</p>
+      </div>
+    </div>
+    <div class="callout callout-warning" style="margin-top:16px;">
+      <strong>一句话概括：</strong>直接 I/O 赢在"稳"和"省"，文件映射赢在"快"（特定场景下）。
+    </div>
+  </div>
+</section>
+
+<!-- ===== 最终建议 ===== -->
+<section id="recommendation" class="section">
+  <h2 class="section-title">最终建议</h2>
+
+<section id="scenario-guide" class="section">
+  <!-- ===== 场景化选型指南 ===== -->
+  <div class="card" style="border-left:4px solid var(--warning);">
+    <h3>场景化选型指南</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      没有放之四海皆最优的方案。根据你的<strong>写入频率、读取频率、文件大小</strong>三个核心变量来选择：
+    </p>
+
+    <table style="margin:12px 0; font-size:14px;">
+      <tr><th style="width:30%;">你的场景特征</th><th style="width:20%;">推荐方案</th><th>理由</th></tr>
+
+      <tr>
+        <td><strong>频繁写 + 低频读<br>文件 &lt; 几百 GB</strong></td>
+        <td><span class="badge-rec">方案三</span> mmap</td>
+        <td style="font-size:13px;">
+          写入仅一次 <code>memcpy</code>，零系统调用，延迟最低。读低频让 mmap 的两个短板（Page Cache 污染、缺页中断延迟）在此场景下不构成实际问题。
+        </td>
+      </tr>
+
+      <tr>
+        <td><strong>频繁写 + 低频读<br>文件 &gt; 1TB</strong></td>
+        <td><span class="badge-rec">方案四</span> 预分配 + 直接 I/O</td>
+        <td style="font-size:13px;">
+          文件超过 1TB 时，mmap 的页表开销巨大（即便 2MB 大页也有 50 万+ 条目），必须用滑动窗口分段映射，失去"指针直访"的简洁性。直接 I/O 不映射、不过 Page Cache，文件再大也无所谓——每次只读写当前 Block 的几十 KB，<strong>1TB 和 1GB 的单次写入延迟完全相同</strong>。MySQL InnoDB 的 ibdata1 动辄几百 GB~几 TB，用的就是这个模式。
+        </td>
+      </tr>
+
+      <tr>
+        <td><strong>频繁写 + 低频读 + 超大文件<br>且希望降低实现复杂度</strong></td>
+        <td><span class="tag tag-green">方案四 简化版</span></td>
+        <td style="font-size:13px;">
+          读频率低 = 可以<strong>省掉自建 LRU 缓存</strong>。只需保留写入缓冲（攒 N 张图一次 DMA 写入），核心代码量跟方案二差不多，额外处理仅三个点：<code>_aligned_malloc</code> + <code>FILE_FLAG_NO_BUFFERING</code> + 扇区对齐。
+        </td>
+      </tr>
+
+      <tr>
+        <td><strong>需要全局 sequence 审计<br>或 32 位系统</strong></td>
+        <td><span class="tag tag-green">方案一</span> / <span class="tag tag-blue">方案二</span></td>
+        <td style="font-size:13px;">
+          需要精确追踪历史数据 → 方案一的 sequence + Index CRC 扫描最完善。<br>
+          32 位系统 → 方案二的 WriteFile 无虚拟地址空间限制。
+        </td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+  <div class="card" style="border-left:4px solid var(--success);">
+    <h3>首选：方案三（单文件 + 内存映射）</h3>
+    <p>在 <strong>64 位 Windows、文件不超过几百 GB</strong> 的场景下，这是写入性能最优方案。核心优势：</p>
+    <ul style="font-size:14px; padding-left:20px; margin:12px 0;">
+      <li>写入一张图像仅需 <strong>1 次 memcpy</strong>，无系统调用、无内核切换</li>
+      <li>OS 的 Lazy Writer 异步刷盘，不阻塞业务线程</li>
+      <li>通过 <code>FlushViewOfFile</code> 可在关键节点强制同步</li>
+      <li><strong>注意：</strong>如果预分配文件超过 1TB，请参考上方选型表改用方案四</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-top:12px; border-left:4px solid var(--primary);">
+    <h3>高性能场景：方案四（预分配 + 直接 I/O）</h3>
+    <p>如果你的系统是 <strong>7×24 高负载连续运行</strong>，且对延迟抖动零容忍，方案四是更优选择：</p>
+    <ul style="font-size:14px; padding-left:20px; margin:12px 0;">
+      <li>预分配 + 直接 I/O 是 MySQL InnoDB、Oracle 等数据库的经典做法，工业级验证</li>
+      <li>零 CPU 拷贝 + 零 Page Cache 污染 + 零元数据抖动 → <strong>三重保障</strong></li>
+      <li>应用自建缓存让你<strong>完全掌控</strong>数据一致性，不依赖内核的回写策略</li>
+      <li>代价是编程复杂度显著增加（扇区对齐、自建 LRU、预读逻辑）</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h4>方案一的价值：防碎片最彻底</h4>
+    <p>方案一虽然写入性能不如方案三/四（WriteFile vs memcpy/直接 I/O），但其<strong>启动时的主动碎片验证与强制整理机制</strong>是其他方案不具备的：</p>
+    <ul style="font-size:14px; padding-left:20px; margin:12px 0;">
+      <li>在 HDD 严重碎片化的环境中，方案二/三/四的「NTFS 尽力分配」可能仍然产生碎片化的大文件</li>
+      <li>方案一通过 FSCTL_GET_VOLUME_BITMAP → FSCTL_GET_RETRIEVAL_POINTERS → FSCTL_MOVE_FILE 三步确保物理连续性</li>
+      <li><strong>理想组合：</strong>四种方案均已内置启动碎片整理。方案三的内存映射写入（或方案四的直接 I/O）+ 启动整理 = 防碎片确定性与极致写入性能兼得</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h4>接口设计参考</h4>
+    <div class="code-block">
+<span class="comment">// ===== disk_ring_buffer.h =====</span>
+<span class="keyword">class</span> <span class="type">DiskRingBuffer</span> {
+<span class="keyword">public</span>:
+    <span class="keyword">struct</span> <span class="type">Config</span> {
+        <span class="keyword">const</span> <span class="type">wchar_t</span>* file_path;     <span class="comment">// 文件路径</span>
+        <span class="type">uint64_t</span>     block_size;    <span class="comment">// 每块最大字节</span>
+        <span class="type">uint32_t</span>     block_count;   <span class="comment">// 块总数</span>
+        <span class="type">bool</span>         use_mapping;   <span class="comment">// 是否使用内存映射</span>
+        <span class="type">bool</span>         use_direct_io; <span class="comment">// 是否使用直接 I/O（绕过 Page Cache）</span>
+    };
+
+    <span class="comment">// 初始化：创建/打开文件，分配空间，可选映射</span>
+    <span class="type">bool</span> <span class="func">Initialize</span>(<span class="keyword">const</span> Config& cfg);
+
+    <span class="comment">// 写入图像，返回写入的 block 索引</span>
+    <span class="type">std::optional</span>&lt;<span class="type">uint32_t</span>&gt; <span class="func">Write</span>(<span class="keyword">const</span> <span class="type">void</span>* data, <span class="type">uint64_t</span> size);
+
+    <span class="comment">// 读取指定 block 的图像</span>
+    <span class="type">std::vector</span>&lt;<span class="type">uint8_t</span>&gt; <span class="func">Read</span>(<span class="type">uint32_t</span> block_index);
+
+    <span class="comment">// 查询信息</span>
+    <span class="type">uint32_t</span> <span class="func">GetWriteCursor</span>() <span class="keyword">const</span>;
+    BlockInfo <span class="func">GetBlockInfo</span>(<span class="type">uint32_t</span> index) <span class="keyword">const</span>;
+    <span class="type">uint32_t</span> <span class="func">GetFreeBlockCount</span>() <span class="keyword">const</span>;
+
+    <span class="comment">// 强制刷盘</span>
+    <span class="type">void</span> <span class="func">Flush</span>();
+};</div>
+  </div>
+
+  <div class="callout callout-warning" style="margin-top:16px;">
+    <strong>注意事项</strong>：
+    <ul style="font-size:13px; padding-left:16px; margin-top:4px;">
+      <li>如果必须支持 32 位系统，请使用方案二或在方案三中实现分段映射</li>
+      <li>FILE_FLAG_NO_BUFFERING 与内存映射 <strong>不兼容</strong>，使用内存映射时无需此标志</li>
+      <li>初始化时通过 <code>FSCTL_QUERY_ALLOCATED_RANGES</code> 验证物理连续性，若不连续可提示用户整理磁盘</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<!-- ==================== 动画脚本 ==================== -->
+<script>
+// ===== 通用工具 =====
+function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+// ============================
+// ============================
+// 动画 1：单文件预分配 + 启动整理环形缓冲区
+// ============================
+(function() {
+  const c = document.getElementById('canvas1');
+  const ctx = c.getContext('2d');
+  const W = 860, H = 420;
+
+  const BLOCK_COUNT = 40;
+  const COLS = 10, ROWS = 4;
+  const BLOCK_W = 40, BLOCK_H = 24, GAP = 3;
+  const HEADER_H = 32, INDEX_H = 20;
+
+  let writeCursor = 0, frame = 0, paused = false, speed = 1;
+  let animId;
+
+  const blockSeq = new Array(BLOCK_COUNT).fill(0);
+  let globalSeq = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.fillStyle = '#64748b'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('文件内部布局（虚拟地址空间视图）', 20, 22);
+
+    const fileX = 20, fileY = 34;
+    const gridW = COLS * (BLOCK_W + GAP) - GAP;
+    const gridH = ROWS * (BLOCK_H + GAP) - GAP;
+    const fileW = gridW + 14;
+
+    // File border
+    ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath(); ctx.roundRect(fileX - 2, fileY - 2, fileW, HEADER_H + 10 + gridH + 10 + INDEX_H + 10, 8); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#6366f1'; ctx.font = 'bold 10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('单文件: vehicle_images.dat', fileX + 4, fileY - 8);
+
+    // Header
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath(); ctx.roundRect(fileX, fileY, fileW - 6, HEADER_H, 4); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('Header (4KB) — magic / write_sequence / write_position / CRC32', fileX + 10, fileY + 21);
+
+    // Block area
+    const blockAreaY = fileY + HEADER_H + 8;
+    const blocksStartX = fileX + 4;
+    const blocksStartY = blockAreaY;
+
+    for (let i = 0; i < BLOCK_COUNT; i++) {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const bx = blocksStartX + col * (BLOCK_W + GAP);
+      const by = blocksStartY + row * (BLOCK_H + GAP);
+      const sq = blockSeq[i];
+
+      let fill, border;
+      if (i === writeCursor) { fill = '#3b82f6'; border = '#1d4ed8'; }
+      else if (sq > 0) { fill = '#10b981'; border = '#059669'; }
+      else { fill = '#e2e8f0'; border = '#cbd5e1'; }
+
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = border;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.roundRect(bx, by, BLOCK_W, BLOCK_H, 2); ctx.fill(); ctx.stroke();
+
+      if (sq > 0) {
+        ctx.fillStyle = '#fff'; ctx.font = '7px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(sq, bx + BLOCK_W/2, by + BLOCK_H/2 + 3);
+      }
+    }
+
+    // Write cursor arrow
+    const ci = writeCursor;
+    const cx2 = blocksStartX + (ci % COLS) * (BLOCK_W + GAP) + BLOCK_W / 2;
+    const cy2 = blocksStartY + Math.floor(ci / COLS) * (BLOCK_H + GAP) - 10;
+    ctx.fillStyle = '#1d4ed8'; ctx.font = 'bold 10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼ 写入指针', cx2, cy2);
+
+    // Index area
+    const indexY = blocksStartY + gridH + 8;
+    ctx.fillStyle = '#6366f1';
+    ctx.beginPath(); ctx.roundRect(fileX, indexY, fileW - 6, INDEX_H, 4); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('Index 区 (N × 128B) — sequence / timestamp / vehicle_id / CRC32', fileX + 10, indexY + 15);
+
+    // ── Right side: Disk physical view ──
+    const diskX = fileX + fileW + 50;
+    const diskY = 34;
+    const diskW = 280;
+    ctx.fillStyle = '#64748b'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('磁盘物理 extent 视图', diskX, 22);
+
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(diskX, diskY, diskW, H - diskY - 16, 6); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('NTFS 卷', diskX + diskW/2, diskY + 18);
+
+    // Show extent bar
+    const barX = diskX + 20, barY = diskY + 36, barW = diskW - 40, barH = 28;
+
+    const fragExtents = [
+      { used: true, our: false, w: 0.08 }, { used: false, our: false, w: 0.04 },
+      { used: true, our: false, w: 0.12 }, { used: false, our: false, w: 0.02 },
+      { used: true, our: false, w: 0.06 }, { used: false, our: false, w: 0.03 },
+      { used: true, our: false, w: 0.10 }, { used: false, our: false, w: 0.01 },
+      { used: true, our: false, w: 0.05 },
+    ];
+    const ourW = 0.35;
+
+    let cx = barX;
+    for (let e of fragExtents) {
+      const ew = e.w * barW;
+      ctx.fillStyle = e.used ? '#ef4444' : '#e2e8f0';
+      ctx.fillRect(cx, barY, ew, barH);
+      cx += ew;
+    }
+    // Our extent
+    ctx.fillStyle = '#3b82f6'; ctx.strokeStyle = '#1d4ed8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(cx, barY, ourW * barW, barH, 3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('环形文件 (1 extent)', cx + ourW * barW / 2, barY + barH/2 + 4);
+    cx += ourW * barW;
+
+    // Remaining free space
+    const remainingW = barX + barW - cx;
+    if (remainingW > 0) {
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(cx, barY, remainingW, barH);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px "Segoe UI","PingFang SC",sans-serif';
+      ctx.textAlign = 'center';
+      if (remainingW > 40) ctx.fillText('连续空闲', cx + remainingW/2, barY + barH/2 + 4);
+    }
+
+    // Legend
+    const ly = barY + barH + 20;
+    ctx.textAlign = 'left';
+    ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillStyle = '#ef4444'; ctx.fillRect(diskX + 20, ly, 10, 10);
+    ctx.fillStyle = '#64748b'; ctx.fillText('其他碎片文件', diskX + 34, ly + 10);
+    ctx.fillStyle = '#3b82f6'; ctx.fillRect(diskX + 120, ly, 10, 10);
+    ctx.fillText('环形文件', diskX + 134, ly + 10);
+    ctx.fillStyle = '#10b981'; ctx.fillRect(diskX + 200, ly, 10, 10);
+    ctx.fillText('空闲', diskX + 214, ly + 10);
+
+    // Bottom stats
+    ctx.fillStyle = '#334155'; ctx.font = '13px "Segoe UI","PingFang SC",sans-serif';
+    ctx.textAlign = 'left';
+    const used = blockSeq.filter(s => s > 0).length;
+    ctx.fillText(`已写入: ${used}/${BLOCK_COUNT} Block  |  序列号: ${globalSeq}  |  MFT 记录: 1 条 (~1KB)  |  物理 extent: 1 (完美连续)`, 20, H - 8);
+  }
+
+  function tick() {
+    if (!paused) {
+      frame++;
+      if (frame % Math.max(1, Math.floor(25 / speed)) === 0) {
+        globalSeq++;
+        blockSeq[writeCursor] = globalSeq;
+        writeCursor = (writeCursor + 1) % BLOCK_COUNT;
+        if (globalSeq > BLOCK_COUNT * 3) {
+          writeCursor = 0; globalSeq = 0;
+          for (let i = 0; i < BLOCK_COUNT; i++) blockSeq[i] = 0;
+        }
+      }
+    }
+    draw();
+    animId = requestAnimationFrame(tick);
+  }
+
+  window.anim1_play = () => { paused = false; };
+  window.anim1_pause = () => { paused = true; };
+  window.anim1_reset = () => { writeCursor = 0; globalSeq = 0; frame = 0; for (let i = 0; i < BLOCK_COUNT; i++) blockSeq[i] = 0; };
+  window.anim1_speed = (s) => { speed = s; };
+  tick();
+})();
+
+// 动画1b：方案一交错布局（数据+索引连续写）
+(function() {
+  const c = document.getElementById('canvas1b');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const W = 860, H = 200;
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    const SLOT_W = 68, SLOT_H = 44, GAP = 3;
+    const HEADER_W = 80;
+    const SX = 20, SY = 24;
+    const SLOTS = 10;
+
+    // Header
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath(); ctx.roundRect(SX, SY, HEADER_W, SLOT_H, 6); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Header', SX + HEADER_W/2, SY + SLOT_H/2 + 4);
+    ctx.fillText('4KB', SX + HEADER_W/2, SY + SLOT_H/2 + 16);
+
+    // Arrow Header → Slots
+    ctx.fillStyle = '#94a3b8'; ctx.font = '16px sans-serif';
+    ctx.fillText('→', SX + HEADER_W + 6, SY + SLOT_H/2 + 6);
+
+    // Draw interleaved slots
+    const slotStartX = SX + HEADER_W + 30;
+    for (let i = 0; i < SLOTS; i++) {
+      const sx = slotStartX + i * (SLOT_W + GAP);
+      // Block
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath(); ctx.roundRect(sx, SY, SLOT_W - 12, SLOT_H, 4); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '9px sans-serif';
+      ctx.fillText('B' + i, sx + (SLOT_W - 12)/2, SY + SLOT_H/2 + 4);
+
+      // Index (small block right after)
+      const ix = sx + SLOT_W - 10;
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(ix, SY, 10, SLOT_H);
+      ctx.fillStyle = '#fff'; ctx.font = '7px sans-serif';
+      ctx.fillText('I' + i, ix + 5, SY + SLOT_H - 6);
+
+      // Bracket around slot
+      if (i < 3) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath(); ctx.roundRect(sx - 2, SY - 1, SLOT_W + 2, SLOT_H + 2, 6); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    ctx.textAlign = 'left';
+
+    // Seeks visualization
+    const arrowY1 = SY + SLOT_H + 18;
+    ctx.fillStyle = '#64748b'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+
+    // Seek 1
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillText('Seek① 定位到 slot[i]', SX, arrowY1);
+    const arrowX1 = SX + 190;
+    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(arrowX1, arrowY1 - 5); ctx.lineTo(arrowX1, SY + SLOT_H + 2);
+    ctx.stroke();
+    ctx.fillStyle = '#3b82f6'; ctx.font = '11px sans-serif';
+    ctx.fillText('→ WriteFile(数据) + WriteFile(Index, 128) 连续写', SX + 200, arrowY1);
+
+    // Seek 2
+    const arrowY2 = arrowY1 + 22;
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('Seek② 回到 Header', SX, arrowY2);
+    const arrowX2 = SX + 155;
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+    ctx.setLineDash([4, 2]);
+    ctx.beginPath(); ctx.moveTo(arrowX2, arrowY2 - 5); ctx.lineTo(arrowX2, SY + 2);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#f59e0b'; ctx.font = '11px sans-serif';
+    ctx.fillText('→ WriteFile(Header, 4KB)', SX + 165, arrowY2);
+
+    // Summary
+    const arrowY3 = arrowY2 + 24;
+    ctx.fillStyle = '#10b981'; ctx.font = 'bold 12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('✅ 每次写入仅 2 次 Seek | 数据+索引物理紧邻连续写入 | HDD 无额外寻道惩罚', SX, arrowY3);
+  }
+  draw();
+})();
+
+// 动画 2：单文件内部块管理
+// ============================
+(function() {
+  const c = document.getElementById('canvas2');
+  const ctx = c.getContext('2d');
+  const BLOCK_W = 48, BLOCK_H = 32, GAP = 4;
+  const COLS = 14, ROWS = 4, TOTAL = 56;
+  const HEADER_H = 36;
+  const gridW = COLS * (BLOCK_W + GAP) - GAP;
+  const gridH = ROWS * (BLOCK_H + GAP) - GAP;
+  const sx = (c.width - gridW) / 2 + 10;
+  const sy = 70;
+
+  let writeCursor = 0, frame = 0, paused = false, speed = 1;
+  // 随机生成每个 block 的实际使用大小（演示变长）
+  const usage = new Array(TOTAL).fill(0);
+  for (let i = 0; i < writeCursor; i++) usage[i] = 0.5 + Math.random() * 0.5;
+
+  function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    // Header 区域
+    ctx.fillStyle = '#6366f1'; ctx.strokeStyle = '#4f46e5'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(sx, sy - HEADER_H, gridW, HEADER_H - 4, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('File Header (4KB) — magic / version / write_cursor / block_meta[] / CRC', sx + 10, sy - HEADER_H + 22);
+
+    // 文件边框
+    ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath(); ctx.roundRect(sx - 6, sy - HEADER_H - 6, gridW + 12, gridH + HEADER_H + 10, 8); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#6366f1'; ctx.font = 'bold 11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('单文件: D:\\vehicle_images.dat', sx + 2, sy - HEADER_H - 12);
+
+    // Block 网格
+    for (let i = 0; i < TOTAL; i++) {
+      const col = i % COLS, row = Math.floor(i / COLS);
+      const x = sx + col * (BLOCK_W + GAP);
+      const y = sy + row * (BLOCK_H + GAP);
+      let fill, border;
+      if (i === writeCursor % TOTAL) { fill = '#3b82f6'; border = '#1d4ed8'; }
+      else if (i < writeCursor) { fill = '#10b981'; border = '#059669'; }
+      else { fill = '#e2e8f0'; border = '#cbd5e1'; }
+
+      ctx.fillStyle = fill; ctx.strokeStyle = border; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(x, y, BLOCK_W, BLOCK_H, 3); ctx.fill(); ctx.stroke();
+
+      // 变长数据示意：已写入 block 显示实际填充比例
+      if (i < writeCursor && usage[i] > 0) {
+        const fillH = BLOCK_H * usage[i];
+        ctx.fillStyle = 'rgba(245,158,11,0.6)';
+        ctx.fillRect(x + 2, y + BLOCK_H - fillH - 2, BLOCK_W - 4, fillH);
+      }
+
+      ctx.fillStyle = '#fff'; ctx.font = '8px "Segoe UI","PingFang SC",sans-serif';
+      ctx.fillText(`${i}`, x + 3, y + 10);
+    }
+
+    // 写入头指示
+    const ci = writeCursor % TOTAL;
+    const cx2 = sx + (ci % COLS) * (BLOCK_W + GAP) + BLOCK_W / 2;
+    const cy2 = sy + Math.floor(ci / COLS) * (BLOCK_H + GAP) - 8;
+    ctx.fillStyle = '#1d4ed8'; ctx.font = 'bold 11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('▼ 写入头', cx2 - 22, cy2);
+
+    // 信息栏
+    ctx.fillStyle = '#334155'; ctx.font = '13px "Segoe UI","PingFang SC",sans-serif';
+    const infoY = sy + gridH + 18;
+    ctx.fillText(`文件句柄: 1    |    写入位置: Block #${writeCursor % TOTAL} / ${TOTAL}`, sx, infoY);
+    ctx.fillText(`文件大小: Header(4KB) + ${TOTAL} × Block = ${(4 + TOTAL * 2 / 1024).toFixed(1)} MB`, sx, infoY + 18);
+    ctx.fillText(`MFT 记录: 仅 1 条 (~1KB)    |    Block 支持变长存储`, sx, infoY + 36);
+  }
+
+  function tick() {
+    if (!paused) { frame++; if (frame % Math.max(1, Math.floor(25 / speed)) === 0) { writeCursor++; if (writeCursor > TOTAL * 2) writeCursor = 0; if (writeCursor < TOTAL) usage[writeCursor] = 0.5 + Math.random() * 0.5; } }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  window.anim2_play = () => { paused = false; };
+  window.anim2_pause = () => { paused = true; };
+  window.anim2_reset = () => { writeCursor = 0; frame = 0; for (let i = 0; i < TOTAL; i++) usage[i] = 0; };
+  window.anim2_speed = (s) => { speed = s; };
+  tick();
+})();
+
+// 动画2b：写入头移动对比
+(function() {
+  const c = document.getElementById('canvas2b');
+  const ctx = c.getContext('2d');
+  let frame = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    const diskR = 90, cx = c.width / 2, cy = c.height / 2;
+
+    // 磁盘示意
+    ctx.fillStyle = '#f1f5f9'; ctx.beginPath(); ctx.arc(cx, cy, diskR + 20, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, diskR + 20, 0, Math.PI * 2); ctx.stroke();
+
+    // 方案二：线性写入（集中在一条螺旋线上）
+    const angle2 = (frame * 0.05) % (Math.PI * 2);
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2 + angle2;
+      const r = 15 + i * 1.8;
+      const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+      ctx.fillStyle = '#6366f1'; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 传统多文件方式：随机分散写入
+    for (let i = 0; i < 40; i++) {
+      const a = (i * 137.5 + frame * 0.3) % 360 * Math.PI / 180;
+      const r = 25 + (i * 3.1) % (diskR - 25);
+      const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+      ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 图例
+    ctx.fillStyle = '#6366f1'; ctx.fillRect(cx - diskR - 20, 14, 12, 12);
+    ctx.fillStyle = '#334155'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('单文件方案：集中连续', cx - diskR - 4, 25);
+
+    ctx.fillStyle = '#ef4444'; ctx.fillRect(cx - diskR - 20, 34, 12, 12);
+    ctx.fillText('传统多文件：分散随机', cx - diskR - 4, 45);
+
+    ctx.fillStyle = '#64748b'; ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('磁盘盘片俯视图 — 圆点代表写入数据的物理位置', cx - 80, cy + diskR + 30);
+
+    frame++;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============================
+// 动画 3：内存映射环形缓冲区
+// ============================
+(function() {
+  const c = document.getElementById('canvas3');
+  const ctx = c.getContext('2d');
+  let frame = 0, paused = false, speed = 1;
+
+  const appX = 30, appW = 280;
+  const diskX = c.width - 300, diskW = 270;
+  const mapY1 = 60, mapY2 = 160;
+
+  function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    // === 左侧：进程虚拟地址空间 ===
+    ctx.fillStyle = '#334155'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('进程虚拟地址空间（用户态）', appX + 30, 26);
+
+    ctx.strokeStyle = '#8b5cf6'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(appX, 36, appW, 400, 8); ctx.stroke();
+
+    // 栈、堆等区域标记
+    ctx.fillStyle = '#f1f5f9'; ctx.fillRect(appX + 8, 44, appW - 16, 60);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('Stack / Heap / Code', appX + 80, 78);
+
+    // 映射区域
+    const mapStartY = 120, mapH = 260;
+    ctx.fillStyle = '#ede9fe'; ctx.fillRect(appX + 8, mapStartY, appW - 16, mapH);
+    ctx.fillStyle = '#7c3aed'; ctx.font = 'bold 12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('File Mapping View', appX + 70, mapStartY + 22);
+    ctx.fillText('(mappedView 指针)', appX + 65, mapStartY + 38);
+
+    // 映射区域内显示 block 网格
+    const smallW = 22, smallH = 16, sg = 2, sCols = 10, sRows = 12;
+    const sStartX = appX + 16, sStartY = mapStartY + 50;
+    const cursorBlock = Math.floor(frame * 0.02) % (sCols * sRows);
+
+    for (let i = 0; i < sCols * sRows; i++) {
+      const col = i % sCols, row = Math.floor(i / sCols);
+      const bx = sStartX + col * (smallW + sg), by = sStartY + row * (smallH + sg);
+      let fill;
+      if (i === cursorBlock) fill = '#f59e0b';
+      else if (i < cursorBlock) fill = '#10b981';
+      else fill = '#d9cffb';
+      ctx.fillStyle = fill;
+      ctx.fillRect(bx, by, smallW, smallH);
+    }
+
+    // 脏页标记
+    for (let i = Math.max(0, cursorBlock - 8); i < cursorBlock; i++) {
+      const col = i % sCols, row = Math.floor(i / sCols);
+      ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(sStartX + col * (smallW + sg) - 1, sStartY + row * (smallH + sg) - 1, smallW + 2, smallH + 2);
+      ctx.setLineDash([]);
+    }
+
+    // memcpy 箭头
+    const copyX = sStartX + (cursorBlock % sCols) * (smallW + sg);
+    const copyY = sStartY + Math.floor(cursorBlock / sCols) * (smallH + sg);
+    ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('memcpy →', copyX + smallW + 4, copyY + 12);
+
+    // === 中间：映射关系 ===
+    const midX = appX + appW + 20;
+    ctx.fillStyle = '#64748b'; ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('页表映射', midX + 30, 200);
+    ctx.fillText('(MMU)', midX + 38, 216);
+
+    // 箭头
+    ctx.strokeStyle = '#8b5cf6'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    for (let i = 0; i < 4; i++) {
+      const ay = mapStartY + 60 + i * 50;
+      ctx.beginPath(); ctx.moveTo(appX + appW, ay); ctx.lineTo(diskX - 4, ay - 10 + i * 8);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#8b5cf6'; ctx.font = '10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('Section Object', midX + 20, 260);
+    ctx.fillText('(内核态)', midX + 32, 276);
+
+    // === 右侧：磁盘文件 ===
+    ctx.fillStyle = '#334155'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('物理磁盘文件（NTFS）', diskX + 45, 26);
+
+    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(diskX, 36, diskW, 400, 8); ctx.stroke();
+
+    // NTFS 层
+    ctx.fillStyle = '#eff6ff'; ctx.fillRect(diskX + 8, 44, diskW - 16, 30);
+    ctx.fillStyle = '#3b82f6'; ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('NTFS 文件系统层', diskX + 70, 64);
+
+    // 数据区
+    const dataY = 88, dataH = 320;
+    ctx.fillStyle = '#f8fafc'; ctx.fillRect(diskX + 8, dataY, diskW - 16, dataH);
+
+    // 显示连续的物理簇
+    const dcw = 16, dch = 14, dg = 2, dCols = 13, dRows = 18;
+    const dsx = diskX + 18, dsy = dataY + 10;
+    for (let i = 0; i < dCols * dRows; i++) {
+      const col = i % dCols, row = Math.floor(i / dCols);
+      const dx = dsx + col * (dcw + dg), dy = dsy + row * (dch + dg);
+      let fill;
+      if (i < frame * 0.3 % (dCols * dRows)) fill = '#93c5fd';
+      else fill = '#e2e8f0';
+      ctx.fillStyle = fill;
+      ctx.fillRect(dx, dy, dcw, dch);
+    }
+
+    ctx.fillStyle = '#3b82f6'; ctx.font = '10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('连续物理簇（单文件）', dsx + 50, dsy + dRows * (dch + dg) + 16);
+
+    // 同步箭头
+    const syncY = dataY + dataH - 20;
+    if (frame % 60 < 20) {
+      ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px "Segoe UI","PingFang SC",sans-serif';
+      ctx.fillText('↑ Lazy Writer 回写脏页 ↑', diskX + 50, syncY);
+    }
+
+    // 底部信息
+    ctx.fillStyle = '#334155'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText(`写入: memcpy(mappedView+offset, img, size)  —  零拷贝`, appX + 10, c.height - 10);
+  }
+
+  function tick() {
+    if (!paused) frame++;
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  window.anim3_play = () => { paused = false; };
+  window.anim3_pause = () => { paused = true; };
+  window.anim3_reset = () => { frame = 0; };
+  window.anim3_speed = (s) => { speed = s; };
+  tick();
+})();
+
+// 动画3b：零拷贝对比
+(function() {
+  const c = document.getElementById('canvas3b');
+  const ctx = c.getContext('2d');
+  let frame = 0;
+
+  function drawArrow(x1, y1, x2, y2, color, label) {
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // arrowhead
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const hx = x2 - 8 * Math.cos(angle), hy = y2 - 8 * Math.sin(angle);
+    ctx.beginPath(); ctx.moveTo(hx - 6 * Math.cos(angle - 0.6), hy - 6 * Math.sin(angle - 0.6));
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(hx - 6 * Math.cos(angle + 0.6), hy - 6 * Math.sin(angle + 0.6));
+    ctx.fill();
+    if (label) { ctx.font = 'bold 11px "Segoe UI","PingFang SC",sans-serif'; ctx.fillText(label, (x1+x2)/2 - 60, (y1+y2)/2 - 6); }
+  }
+
+  function drawBox(x, y, w, h, color, text, textColor) {
+    ctx.fillStyle = color; ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = textColor || '#fff'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText(text, x + 10, y + h / 2 + 5);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    // ===== 上方：传统 WriteFile =====
+    ctx.fillStyle = '#ef4444'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('传统方式：WriteFile() — 2 次拷贝', 20, 22);
+
+    drawBox(20, 35, 140, 40, '#fee2e2', '用户缓冲区\n(imageData)', '#991b1b');
+    drawBox(230, 35, 140, 40, '#ffedd5', '内核缓冲区\n(IRP / Cache)', '#9a3412');
+    drawBox(440, 35, 140, 40, '#dbeafe', '磁盘控制器\n(DMA)', '#1e40af');
+
+    drawArrow(160, 55, 228, 55, '#ef4444', '拷贝① (CPU)');
+    drawArrow(370, 55, 438, 55, '#f59e0b', 'DMA 传输');
+
+    // 内核切换标记
+    ctx.fillStyle = '#ef4444'; ctx.font = '10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('用户态 → 内核态切换', 240, 90);
+    ctx.fillText('syscall 开销 ~1μs', 252, 104);
+
+    // ===== 下方：内存映射 =====
+    const y2 = 140;
+    ctx.fillStyle = '#10b981'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('内存映射方式：memcpy() — 0 次额外拷贝', 20, y2);
+
+    drawBox(20, y2 + 10, 200, 45, '#d1fae5', '用户内存 (mappedView)\n= 文件页的直接映射', '#065f46');
+    drawBox(370, y2 + 10, 210, 45, '#dbeafe', '磁盘控制器\n(DMA / Lazy Writer 回写)', '#1e40af');
+
+    drawArrow(220, y2 + 32, 368, y2 + 32, '#10b981', 'MMU 直接映射（无拷贝）');
+
+    ctx.fillStyle = '#10b981'; ctx.font = '10px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('始终在用户态 — 无 syscall', 250, y2 + 72);
+    ctx.fillText('仅在 Page Fault 时进入内核', 248, y2 + 86);
+
+    // 性能数据
+    ctx.fillStyle = '#64748b'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif';
+    ctx.fillText('WriteFile 延迟: ~5-20μs/次 (含 syscall + 缓存拷贝)', 20, y2 + 115);
+    ctx.fillText('memcpy 延迟:   ~0.1μs/次 (纯用户态 CPU 指令)', 20, y2 + 135);
+    ctx.fillText('性能提升:      50-200×', 20, y2 + 155);
+
+    frame++;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ===== 导航高亮 =====
+(function() {
+  const navItems = document.querySelectorAll('.nav-item');
+  const sections = document.querySelectorAll('.section');
+
+  function updateNav() {
+    let current = '';
+    sections.forEach(s => { const top = s.getBoundingClientRect().top; if (top < 200) current = s.id; });
+    navItems.forEach(item => {
+      const href = item.getAttribute('href').replace('#', '');
+      item.classList.toggle('active', href === current);
+    });
+  }
+  window.addEventListener('scroll', updateNav);
+
+  // 平滑滚动
+  navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.querySelector(item.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+})();
+
+// ===== 编辑模式切换 =====
+let isEditing = false;
+
+function toggleEdit() {
+  isEditing = !isEditing;
+  const main = document.querySelector('.main');
+  const toggle = document.getElementById('editToggle');
+  const toolbar = document.getElementById('editToolbar');
+
+  if (isEditing) {
+    main.contentEditable = 'true';
+    document.body.classList.add('editing');
+    toggle.classList.add('active');
+    toggle.textContent = '✕';
+    toolbar.classList.add('visible');
+  } else {
+    main.contentEditable = 'false';
+    document.body.classList.remove('editing');
+    toggle.classList.remove('active');
+    toggle.textContent = '✎';
+    toolbar.classList.remove('visible');
+  }
+}
+
+function saveEdit() {
+  const main = document.querySelector('.main');
+  // 移除 contentEditable 属性以获得干净的 HTML
+  const wasEditing = isEditing;
+  if (wasEditing) {
+    main.contentEditable = 'false';
+  }
+
+  const htmlContent = document.documentElement.outerHTML;
+
+  if (wasEditing) {
+    main.contentEditable = 'true';
+  }
+
+  // 下载编辑后的 HTML 文件
+  const blob = new Blob(['<!DOCTYPE html>\n' + htmlContent], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '磁盘存储多方案.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  // 短暂反馈
+  const saveBtn = document.querySelector('.save-btn');
+  const origText = saveBtn.textContent;
+  saveBtn.textContent = '✅ 已下载!';
+  saveBtn.style.background = '#10b981';
+  setTimeout(() => {
+    saveBtn.textContent = origText;
+    saveBtn.style.background = '';
+  }, 1500);
+}
+</script>
+
+</body>
+</html>
