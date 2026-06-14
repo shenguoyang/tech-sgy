@@ -61,12 +61,12 @@ D:\Data\ProjectRoot\
 
 三个物理位置，四个逻辑温度：
 
-| 物理位置 | 逻辑温度 | 管理方式 |
-|---------|---------|---------|
-| `D:\RingBuffer\ring.dat` | 热 (0-5min) | Direct I/O, committed_seq之前的Block |
-| `D:\Data\ProjectRoot\` | 温 (1-30天) | 物化目录树, 标准NTFS文件 |
-| `E:\Archive\ProjectRoot\` | 冷 (30-365天) | Robocopy迁移, 保持目录结构 |
-| (已删除) | 过期 (>365天) | 定期清理 |
+| 物理位置                      | 逻辑温度        | 管理方式                              |
+| ------------------------- | ----------- | --------------------------------- |
+| `D:\RingBuffer\ring.dat`  | 热 (0-5min)  | Direct I/O, committed_seq之前的Block |
+| `D:\Data\ProjectRoot\`    | 温 (1-30天)   | 物化目录树, 标准NTFS文件                   |
+| `E:\Archive\ProjectRoot\` | 冷 (30-365天) | Robocopy迁移, 保持目录结构                |
+| (已删除)                     | 过期 (>365天)  | 定期清理                              |
 
 ### 分层实现细节
 
